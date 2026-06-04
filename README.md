@@ -86,9 +86,11 @@ export DEEPSEEK_MODEL="deepseek-v4-flash"
 
 ```bash
 aegis                              # 启动交互式 TUI
-aegis --model deepseek-v4-flash     # 指定模型
-aegis --effort high                 # 指定推理强度 (off / high / max)
+aegis --model deepseek-v4-flash     # 指定模型（-m）
+aegis --effort high                 # 推理强度 off / high / max（-e）
+aegis chat                          # 等同于 aegis
 aegis config                        # 显示配置目录
+aegis --help                        # 完整命令行选项
 ```
 
 ### 快捷键
@@ -96,22 +98,34 @@ aegis config                        # 显示配置目录
 | 按键 | 行为 |
 |------|------|
 | `Enter` | 发送消息 |
-| `Esc` | 取消当前操作 / 清空输入 / 退出 |
+| `Esc` | 取消 / 清空输入 / 退出 |
 | `Ctrl+D` | 退出 |
-| `PgUp` `PgDn` | 翻页（消息区） |
-| `Ctrl+C` | 复制选中文本 |
-| `/` | 触发斜杠命令 |
-| `!` | 内联执行 bash |
+| `Ctrl+C` | 中断当前任务 / 复制选中文本 |
+| `PgUp` `PgDn` | 翻页 |
+| `Shift+Tab` | 循环切换执行模式 |
+| `!` | 内联执行 shell（如 `!cargo test`） |
+| `@文件名` | 引用文件，输入时自动补全 |
 
 ### 斜杠命令
 
 | 命令 | 效果 |
 |------|------|
-| `/model` | 切换模型（pro ↔ flash） |
-| `/mode` | 切换执行模式：default → plan → yolo → chat |
-| `/clear` | 清空对话 |
-| `/compact` | 压缩上下文 |
-| `/skill <名称>` | 加载 skill |
+| `/clear` | 清空对话历史 |
+| `/model` | 打开模型选择面板（pro / flash，推理强度） |
+| `/mode` | 切换执行模式（default → plan → yolo → chat） |
+| `/skill [名称]` | 列出或加载 skill |
+| `/compact` | 手动压缩上下文 |
+| `/thinking` | 开关 reasoning / thinking 模式 |
+| `/verify` | 开关代码验证（cargo check + test） |
+| `/snap` | 开关上下文快照 |
+| `/sandbox` | 开关沙箱执行 |
+| `/status` | 显示当前状态（模型、token、费用） |
+| `/context` | 显示上下文窗口用量 |
+| `/diff` | 显示 git diff |
+| `/export` | 导出当前对话为 markdown |
+| `/resume [会话]` | 恢复已保存的会话 |
+| `/mcp` | MCP 服务器配置 |
+| `/help` | 列出所有命令 |
 
 ---
 
