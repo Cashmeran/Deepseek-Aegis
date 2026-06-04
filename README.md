@@ -10,33 +10,19 @@
 
 <br/>
 
-Aegis 是 DeepSeek V4 的终端编程代理。Rust 写的，不到 20MB。三体分离引擎（规划 → 生成 → 验证）共用同一个模型，不同阶段用不同系统提示词，零额外 API 成本。33 个内置工具，因果记忆，代码知识图谱，启动 <200ms。
+Aegis 是终端编程代理。
 
 ```
 $ aegis
 > 加个 JWT 认证中间件，支持 token 刷新和黑名单
 ```
 
-规划器先调研代码库，锁定验收标准。生成器写代码。验证器跑 `cargo check` 和 `cargo test`，没过就回去修，最多 8 轮。
 
 > [!TIP]
 > DeepSeek 的前缀缓存是字节级别的。aegis 的系统提示词分成 Layer 0（角色/规则/安全 — 基本不变）和 Layer 1（工具列表/项目结构 — 很少变），对 Layer 0 做了 SHA256 指纹锁死，保证缓存键永不失效。实测缓存命中率 >90%，长对话 token 成本降低约 90%。
 
 ---
 
-## 和别的 agent 有什么不同
-
-| | Aegis | Reasonix | Claude Code | Aider |
-|---|---|---|---|---|
-| 后端 | DeepSeek V4 | DeepSeek V3/V4 | Anthropic | 任意 |
-| 语言 | Rust | TypeScript | TypeScript | Python |
-| 启动 | <200ms | <1s | <2s | <500ms |
-| 缓存 | 双层前缀锁定 | 缓存优先 | 不适用 | 偶发 |
-| 验证 | cargo check + test + git diff | SEARCH/REPLACE 审阅 | — | lint-fix |
-| 记忆 | 因果图 + 语义搜索 | file-based | — | — |
-| 代码图谱 | tree-sitter × 5 | — | — | repo-map |
-
----
 
 ## 安装
 
@@ -69,7 +55,7 @@ cargo build --release
 
 ### 配置 API Key
 
-首次运行没有 key 会直接让你输，自动保存。或者手动写。
+首次运行没有 key 会提示输入，自动保存。或者手动写。
 
 <details>
 <summary><strong>配置方式和环境变量</strong></summary>
@@ -78,7 +64,7 @@ cargo build --release
 
 ```toml
 api_key = "sk-..."
-model = "deepseek-v4-pro"      # 或 deepseek-v4-flash
+model = "deepseek-v4-pro"      
 effort = "max"                  # off / high / max
 acp_port = 9876                 # ACP 服务端口，0 禁用
 ```
@@ -339,13 +325,6 @@ cargo check --workspace
 cargo run --features perf -- --perf-log perf.log
 ```
 
----
-
-## 不做
-
-- **多供应商。** aegis 只支持 DeepSeek。前缀缓存和三体引擎的分离 prompt 设计依赖 DeepSeek 字节一致的缓存行为。换模型这两条都得重做。
-- **IDE 插件。** 终端优先。TUI 是主界面。
-- **Web 仪表盘。** token 用量、缓存命中率、实时成本都显示在 TUI 状态栏里。
 
 ---
 
