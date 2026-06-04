@@ -50,6 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libdbus-1-dev
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -75,36 +80,33 @@ jobs:
           files: aegis-linux-x86_64.tar.gz
           generate_release_notes: true
 
-  # ── macOS (x86_64 + aarch64) ──────────────────────────────────────
+  # ── macOS (universal: aarch64 only, x86_64 via Rosetta) ─────────
   macos:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
 
-      - name: Build
-        run: cargo build --release --bin aegis --bin aegis-diag --target ${{ matrix.target }}
+      - name: Build (aarch64)
+        run: cargo build --release --bin aegis --bin aegis-diag
 
       - name: Package (tar.gz)
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/aegis release/
-          cp target/${{ matrix.target }}/release/aegis-diag release/
+          cp target/release/aegis release/
+          cp target/release/aegis-diag release/
           cp README.md LICENSE release/ 2>/dev/null || true
-          cd release && tar czf ../aegis-macos-${{ matrix.target }}.tar.gz *
+          cd release && tar czf ../aegis-macos-aarch64.tar.gz *
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: aegis-macos-${{ matrix.target }}.tar.gz
+          files: aegis-macos-aarch64.tar.gz
           generate_release_notes: true
