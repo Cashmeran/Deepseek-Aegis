@@ -14,7 +14,7 @@ const UPDATE_CHECK_DISABLE_ENV: &str = "CLAUDE_RUST_NO_UPDATE_CHECK";
 const UPDATE_CHECK_TTL_SECS: u64 = 24 * 60 * 60;
 const UPDATE_CHECK_TIMEOUT: Duration = Duration::from_secs(4);
 const GITHUB_LATEST_RELEASE_API_URL: &str =
-    "https://api.github.com/repos/Cashmeran/deepseek-aegis/releases/latest";
+    "https://api.github.com/repos/Cashmeran/Deepseek-Aegis/releases/latest";
 const GITHUB_API_ACCEPT_VALUE: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION_VALUE: &str = "2022-11-28";
 const GITHUB_USER_AGENT_VALUE: &str = "aegis-update-check";

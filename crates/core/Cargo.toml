@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Core agent infrastructure — types, LLM client, tool system, agent loop, three-body harness"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/Cashmeran/deepseek-aegis"
-homepage = "https://github.com/Cashmeran/deepseek-aegis"
+repository = "https://github.com/Cashmeran/Deepseek-Aegis"
+homepage = "https://github.com/Cashmeran/Deepseek-Aegis"
 
 [dependencies]
 tokio.workspace = true

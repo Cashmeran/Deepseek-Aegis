@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "33 built-in tools — file ops, search, git, bash, planning, agents, review, infrastructure"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/Cashmeran/deepseek-aegis"
-homepage = "https://github.com/Cashmeran/deepseek-aegis"
+repository = "https://github.com/Cashmeran/Deepseek-Aegis"
+homepage = "https://github.com/Cashmeran/Deepseek-Aegis"
 
 [dependencies]
 aegis-core.workspace = true

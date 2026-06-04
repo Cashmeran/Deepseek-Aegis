@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Repo = "Cashmeran/deepseek-aegis"
+$Repo = "Cashmeran/Deepseek-Aegis"
 
 Write-Host "Installing aegis..." -ForegroundColor Cyan
 

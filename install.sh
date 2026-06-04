@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="Cashmeran/deepseek-aegis"
+REPO="Cashmeran/Deepseek-Aegis"
 BIN="aegis"
 
 # ── Detect OS/Arch ──────────────────────────────────────────────────

@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "MCP protocol implementation — ACP server (HTTP/SSE), connection manager, tool bridge"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/Cashmeran/deepseek-aegis"
-homepage = "https://github.com/Cashmeran/deepseek-aegis"
+repository = "https://github.com/Cashmeran/Deepseek-Aegis"
+homepage = "https://github.com/Cashmeran/Deepseek-Aegis"
 
 [dependencies]
 aegis-core.workspace = true

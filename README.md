@@ -1,11 +1,11 @@
 <p align="center">
-  <img alt="Aegis" src="https://raw.githubusercontent.com/Cashmeran/deepseek-aegis/main/docs/aegis-banner.svg" width="540">
+  <img alt="Aegis" src="https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/docs/aegis-banner.svg" width="540">
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square&color=8b949e&labelColor=161b22" /></a>
-  <a href="https://github.com/Cashmeran/deepseek-aegis/actions"><img src="https://img.shields.io/github/actions/workflow/status/Cashmeran/deepseek-aegis/release.yml?style=flat-square&label=ci&labelColor=161b22&logo=githubactions&logoColor=white" /></a>
-  <a href="https://github.com/Cashmeran/deepseek-aegis/stargazers"><img src="https://img.shields.io/github/stars/Cashmeran/deepseek-aegis.svg?style=flat-square&color=dbab09&labelColor=161b22&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/Cashmeran/Deepseek-Aegis/actions"><img src="https://img.shields.io/github/actions/workflow/status/Cashmeran/Deepseek-Aegis/release.yml?style=flat-square&label=ci&labelColor=161b22&logo=githubactions&logoColor=white" /></a>
+  <a href="https://github.com/Cashmeran/Deepseek-Aegis/stargazers"><img src="https://img.shields.io/github/stars/Cashmeran/Deepseek-Aegis.svg?style=flat-square&color=dbab09&labelColor=161b22&logo=github&logoColor=white" /></a>
 </p>
 
 <br/>
@@ -44,12 +44,12 @@ $ aegis
 
 ```bash
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Cashmeran/deepseek-aegis/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/install.sh | bash
 ```
 
 ```powershell
 # Windows PowerShell（管理员运行）
-irm https://raw.githubusercontent.com/Cashmeran/deepseek-aegis/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/install.ps1 | iex
 ```
 
 ### Cargo
@@ -61,7 +61,7 @@ cargo install aegis-cli --locked
 ### 源码
 
 ```bash
-git clone https://github.com/Cashmeran/deepseek-aegis.git
+git clone https://github.com/Cashmeran/Deepseek-Aegis.git
 cd deepseek-aegis
 cargo build --release
 ./target/release/aegis
@@ -351,14 +351,14 @@ cargo run --features perf -- --perf-log perf.log
 
 <a href="https://www.star-history.com/?repos=loopfz%2Fdeepseek-aegis&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Cashmeran/deepseek-aegis&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Cashmeran/deepseek-aegis&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Cashmeran/deepseek-aegis&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Cashmeran/Deepseek-Aegis&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Cashmeran/Deepseek-Aegis&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Cashmeran/Deepseek-Aegis&type=date&legend=top-left" />
  </picture>
 </a>
 
 ---
 
 <p align="center">
-  <sub>Apache 2.0 · <a href="./LICENSE">LICENSE</a> · <a href="https://github.com/Cashmeran/deepseek-aegis">GitHub</a></sub>
+  <sub>Apache 2.0 · <a href="./LICENSE">LICENSE</a> · <a href="https://github.com/Cashmeran/Deepseek-Aegis">GitHub</a></sub>
 </p>
