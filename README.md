@@ -324,6 +324,12 @@ agent.with_memory(Arc::new(move |query: &str| -> String {
 
 ---
 
+## 社区
+
+QQ 群：**654689667** — 反馈问题、讨论功能、交流经验。
+
+---
+
 ## 开发
 
 ```bash
