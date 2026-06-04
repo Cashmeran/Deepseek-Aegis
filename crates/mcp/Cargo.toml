@@ -1,0 +1,23 @@
+[package]
+name = "aegis-mcp"
+version = "0.1.0"
+description = "MCP protocol implementation — ACP server (HTTP/SSE), connection manager, tool bridge"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Cashmeran/deepseek-aegis"
+homepage = "https://github.com/Cashmeran/deepseek-aegis"
+
+[dependencies]
+aegis-core.workspace = true
+aegis-tools.workspace = true
+aegis-code-graph.workspace = true
+aegis-memory.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+serde.workspace = true
+serde_json.workspace = true
+axum.workspace = true
+tracing.workspace = true
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "blocking"] }
+async-trait.workspace = true
+futures = "0.3"

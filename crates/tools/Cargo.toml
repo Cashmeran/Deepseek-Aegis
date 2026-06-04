@@ -1,0 +1,22 @@
+[package]
+name = "aegis-tools"
+version = "0.1.0"
+description = "33 built-in tools — file ops, search, git, bash, planning, agents, review, infrastructure"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Cashmeran/deepseek-aegis"
+homepage = "https://github.com/Cashmeran/deepseek-aegis"
+
+[dependencies]
+aegis-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+globset.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+# config validation
+toml = "0.8"
+serde_yaml = "0.9"

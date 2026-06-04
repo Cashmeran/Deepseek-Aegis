@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ── Windows (x86_64) ──────────────────────────────────────────────
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Build
+        run: cargo build --release --bin aegis --bin aegis-diag
+
+      - name: Package (zip)
+        shell: bash
+        run: |
+          mkdir -p release
+          cp target/release/aegis.exe release/
+          cp target/release/aegis-diag.exe release/
+          cp README.md LICENSE release/ 2>/dev/null || true
+          cd release && 7z a ../aegis-windows-x86_64.zip *
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: aegis-windows-x86_64.zip
+          generate_release_notes: true
+
+  # ── Linux (x86_64) ─────────────────────────────────────────────────
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Build
+        run: cargo build --release --bin aegis --bin aegis-diag
+
+      - name: Package (tar.gz)
+        run: |
+          mkdir -p release
+          cp target/release/aegis release/
+          cp target/release/aegis-diag release/
+          cp README.md LICENSE release/ 2>/dev/null || true
+          cd release && tar czf ../aegis-linux-x86_64.tar.gz *
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: aegis-linux-x86_64.tar.gz
+          generate_release_notes: true
+
+  # ── macOS (x86_64 + aarch64) ──────────────────────────────────────
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Build
+        run: cargo build --release --bin aegis --bin aegis-diag --target ${{ matrix.target }}
+
+      - name: Package (tar.gz)
+        run: |
+          mkdir -p release
+          cp target/${{ matrix.target }}/release/aegis release/
+          cp target/${{ matrix.target }}/release/aegis-diag release/
+          cp README.md LICENSE release/ 2>/dev/null || true
+          cd release && tar czf ../aegis-macos-${{ matrix.target }}.tar.gz *
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: aegis-macos-${{ matrix.target }}.tar.gz
+          generate_release_notes: true

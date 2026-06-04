@@ -1,0 +1,47 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/tools",
+    "crates/code-graph",
+    "crates/memory",
+    "crates/sandbox",
+    "crates/cli",
+    "crates/mcp",
+]
+
+[workspace.dependencies]
+# 内部 crate 路径依赖
+aegis-core = { path = "crates/core" }
+aegis-tools = { path = "crates/tools" }
+aegis-code-graph = { path = "crates/code-graph" }
+aegis-memory = { path = "crates/memory" }
+aegis-sandbox = { path = "crates/sandbox" }
+aegis-cli = { path = "crates/cli" }
+aegis-mcp = { path = "crates/mcp" }
+
+# 异步运行时 — 整个系统的并发基础
+tokio = { version = "1.44", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-appender = "0.2"          # 日志轮转
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
+futures = "0.3"
+dashmap = "6"
+clap = { version = "4.5", features = ["derive"] }   # CLI参数解析
+ratatui = "0.29"                                      # TUI框架
+crossterm = "0.28"                                    # 终端控制
+rustyline = "15"                                       # readline 行编辑
+axum = { version = "0.8", features = ["json"] }       # MCP SSE HTTP server
+tokio-stream = "0.1"
+async-trait = "0.1"
+globset = "0.4"
+regex = "1"

@@ -1,0 +1,72 @@
+[package]
+name = "aegis-cli"
+version = "0.1.0"
+description = "Terminal UI (ratatui) + event loop + app layer + ACP bridge"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Cashmeran/deepseek-aegis"
+homepage = "https://github.com/Cashmeran/deepseek-aegis"
+
+[[bin]]
+name = "aegis"
+path = "src/main.rs"
+
+[[bin]]
+name = "aegis-diag"
+path = "src/bin/diag.rs"
+
+[dependencies]
+aegis-core.workspace = true
+aegis-tools.workspace = true
+aegis-memory = { workspace = true, features = ["embedding"] }
+aegis-code-graph.workspace = true
+aegis-sandbox.workspace = true
+aegis-mcp.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+crossterm = { workspace = true, features = ["event-stream"] }
+ratatui = { version = "0.30.0", features = ["unstable-rendered-line-info", "scrolling-regions"] }
+clap.workspace = true
+rustyline.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+serde_json.workspace = true
+serde = { version = "1", features = ["derive"] }
+unicode-width = "0.2"
+unicode-segmentation = "1"
+futures-util = "0.3.32"
+futures = "0.3"
+tui-markdown = "0.3.7"
+tui-textarea = "0.7"
+pulldown-cmark = "0.13"
+syntect = { version = "5.3.0", default-features = false, features = ["default-fancy"] }
+similar = "3"
+ansi-to-tui = "8"
+base64 = "0.22"
+notify = "8"
+dirs = "6"
+toml = "0.8"
+fastrand = "2"
+ignore = "0.4"
+arboard = { version = "3", features = ["image-data"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+thiserror = "2"
+tokio-util = { version = "0.7", features = ["compat"] }
+which = "8"
+libc = "0.2"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+notify-rust = "4"
+textwrap = "0.16"
+async-trait.workspace = true
+rusqlite.workspace = true
+
+[features]
+embedding = ["aegis-memory/embedding"]
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"

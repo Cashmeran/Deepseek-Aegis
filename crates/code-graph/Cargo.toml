@@ -1,0 +1,33 @@
+[package]
+name = "aegis-code-graph"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Cashmeran/deepseek-aegis"
+homepage = "https://github.com/Cashmeran/deepseek-aegis"
+
+description = "Persistent code knowledge graph — tree-sitter parsing, SQLite storage, incremental updates"
+
+[dependencies]
+aegis-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+globset.workspace = true
+chrono.workspace = true
+async-trait.workspace = true
+
+# tree-sitter ecosystem (v0.25 API)
+tree-sitter = "0.25"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-go = "0.23"
+
+# recursive directory walker
+walkdir = "2"

@@ -1,0 +1,7 @@
+target/
+.agent/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.local

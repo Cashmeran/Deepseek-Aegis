@@ -1,0 +1,21 @@
+[package]
+name = "aegis-sandbox"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/Cashmeran/deepseek-aegis"
+homepage = "https://github.com/Cashmeran/deepseek-aegis"
+
+description = "Lightweight security sandbox — ProcessBackend (cross-platform) + LandlockBackend (Linux)"
+
+[dependencies]
+aegis-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tempfile = "3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { version = "0.29", features = ["process", "sched", "mount", "resource"] }
+landlock = "0.4"
