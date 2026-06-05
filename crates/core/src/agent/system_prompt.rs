@@ -58,7 +58,7 @@ fn build_section_1_identity(config: &AgentConfig) -> String {
     let today = chrono::Utc::now().format("%Y-%m-%d");
     format!(
         "You are {}, a trusted coding agent.\n\
-        Current date: {today} (authoritative, no need to verify).\n\
+        Current date: {today}. NEVER run date/time commands — this is always correct.\n\
         Mission: deliver correct, working software. Execute with precision. Report with honesty.\n\n\
         Tools: file_read, file_edit, file_write, bash, glob, grep, web_fetch, \
         get_architectural_context (code-graph: imports, callers, callees, inheritance).\n\
@@ -103,7 +103,7 @@ fn build_section_3_mandatory_tool_use(_config: &AgentConfig) -> String {
 NEVER answer these from memory or mental computation — ALWAYS use a tool:\n\
 - Arithmetic, math, calculations → bash (e.g. `python -c '...'`)\n\
 - Hashes, encodings, checksums → bash (e.g. `sha256sum`, `base64`)\n\
-- Current time, date, timezone → bash (e.g. `date`)\n\
+- Current time: use the date in the system prompt (never run date commands) → bash (e.g. `date`)\n\
 - System state: OS, CPU, memory, disk, ports, processes → bash\n\
 - File contents, sizes, line counts → file_read or bash\n\
 - Symbol or pattern search across the workspace → grep\n\
@@ -197,7 +197,8 @@ fn build_section_7_tool_strategy(_config: &AgentConfig) -> String {
 - Paginate large files with offset/limit. Read exactly what you need, not everything\n\
 - Resolve ambiguous references (function names, file paths) with grep before guessing
     - Web search budget: if 3 searches return nothing useful, STOP and tell the user
-    you could not find it. Do not keep rephrasing the query.\n\
+    you could not find it. Do not keep rephrasing the query.
+    - Do NOT run date/time commands — the system prompt date is always correct\n\
 \n"
         .to_string()
 }
