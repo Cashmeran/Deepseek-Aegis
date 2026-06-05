@@ -76,7 +76,7 @@ pub(crate) fn render_msg<'a>(out: &mut Vec<Line<'a>>, msg: &'a Msg, area_w: u16)
                 Style::default().fg(Color::Rgb(40, 40, 40)),
             )));
         }
-        Msg::Tool { name, done, ok, detail, elapsed_ms } => {
+        Msg::Tool { name, done, ok, detail, elapsed_ms, .. } => {
             let icon = if *done { if *ok { "+" } else { "x" } } else { "..." };
             let color = if *done { if *ok { Color::Green } else { Color::Red } } else { Color::Yellow };
             let _error_bg = Style::default().bg(Color::Rgb(80, 20, 20));

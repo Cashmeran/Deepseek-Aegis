@@ -30,7 +30,7 @@ impl Throttle {
 pub enum Msg {
     User(String),
     Asst { text: String, think: String },
-    Tool { name: String, done: bool, ok: bool, detail: String, elapsed_ms: u64 },
+    Tool { id: String, name: String, done: bool, ok: bool, detail: String, elapsed_ms: u64 },
     System(String),
 }
 

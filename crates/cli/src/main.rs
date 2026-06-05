@@ -143,21 +143,19 @@ impl App {
         match event {
             StreamEvent::TextDelta(delta) => { self.append_or_create_assistant(&delta, ""); }
             StreamEvent::ThinkingDelta(delta) => { self.append_or_create_assistant("", &delta); }
-            StreamEvent::ToolUseStart { id: _, name, input } => {
+            StreamEvent::ToolUseStart { id, name, input } => {
                 let detail = if name == "ask_user" {
                     "等待回复…".to_string()
                 } else {
                     serde_json::to_string(&input).unwrap_or_default().chars().take(100).collect()
                 };
-                self.messages.push(Msg::Tool { name, done: false, ok: true, detail, elapsed_ms: 0 });
+                self.messages.push(Msg::Tool { id, name, done: false, ok: true, detail, elapsed_ms: 0 });
                 self.last_assist_idx = None;
             }
-            StreamEvent::ToolResult { id: _, name, is_error, output, elapsed_ms } => {
-                // Iterate backward to find the most recent undone tool — last_mut() may point
-                // at a text message added between tool-start and tool-result.
+            StreamEvent::ToolResult { id, name, is_error, output, elapsed_ms } => {
                 for msg in self.messages.iter_mut().rev() {
-                    if let Msg::Tool { done, ok, detail, elapsed_ms: tool_elapsed, .. } = msg {
-                        if !*done {
+                    if let Msg::Tool { id: tid, done, ok, detail, elapsed_ms: tool_elapsed, .. } = msg {
+                        if *tid == id {
                             *done = true;
                             *ok = !is_error;
                             *tool_elapsed = elapsed_ms;
@@ -209,7 +207,7 @@ impl App {
                 }
                 self.cost += (resp.usage.input_tokens as f64 * 0.14
                     + resp.usage.output_tokens as f64 * 0.28) / 1_000_000.0;
-                if let Some(Msg::Tool { done, .. }) = self.messages.last_mut() { *done = true; }
+                // ToolResult events update done/ok by id; don't pre-mark here
                 self.last_assist_idx = None;
             }
         }

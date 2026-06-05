@@ -59,7 +59,7 @@ impl Throttle {
 enum Msg {
     User(String),
     Asst { text: String, think: String },
-    Tool { name: String, done: bool, ok: bool, detail: String },
+    Tool { id: String, name: String, done: bool, ok: bool, detail: String },
     #[allow(dead_code)]
     System(String),
 }
@@ -229,10 +229,10 @@ impl App {
             StreamEvent::ThinkingDelta(delta) => {
                 self.append_or_create_assistant("", &delta);
             }
-            StreamEvent::ToolUseStart { name, input, .. } => {
+            StreamEvent::ToolUseStart { id, name, input } => {
                 let detail = format!("{} {}", name,
                     serde_json::to_string(&input).unwrap_or_default());
-                self.messages.push(Msg::Tool { name, done: false, ok: true, detail });
+                self.messages.push(Msg::Tool { id, name, done: false, ok: true, detail });
                 self.last_assist_idx = None;
             }
             StreamEvent::ToolProgress { .. } => {}
@@ -341,7 +341,7 @@ fn render_msg<'a>(out: &mut Vec<Line<'a>>, msg: &'a Msg, area_w: u16) {
                 }
             }
         }
-        Msg::Tool { name, done, ok, detail } => {
+        Msg::Tool { name, done, ok, detail, .. } => {
             let icon = if *done { if *ok { "+" } else { "x" } } else { "…" };
             let color = if *done { if *ok { Color::Green } else { Color::Red } } else { Color::Yellow };
             out.push(Line::from(vec![
