@@ -55,8 +55,10 @@ const STATIC_ORDER: SectionList = &[
 /// S1: Identity — who you are, what you have, full capability inventory.
 ///
 fn build_section_1_identity(config: &AgentConfig) -> String {
+    let today = chrono::Utc::now().format("%Y-%m-%d");
     format!(
         "You are {}, a trusted coding agent.\n\
+        Current date: {today}.\n\
         Mission: deliver correct, working software. Execute with precision. Report with honesty.\n\n\
         Tools: file_read, file_edit, file_write, bash, glob, grep, web_fetch, \
         get_architectural_context (code-graph: imports, callers, callees, inheritance).\n\
@@ -193,7 +195,9 @@ fn build_section_7_tool_strategy(_config: &AgentConfig) -> String {
 - Parallel-first: batch independent operations in one turn. Reading 3 files = 3 parallel calls\n\
 - Sequential only when dependent: if B needs A's output, wait for A before calling B\n\
 - Paginate large files with offset/limit. Read exactly what you need, not everything\n\
-- Resolve ambiguous references (function names, file paths) with grep before guessing\n\
+- Resolve ambiguous references (function names, file paths) with grep before guessing
+    - Web search budget: if 3 searches return nothing useful, STOP and tell the user
+    you could not find it. Do not keep rephrasing the query.\n\
 \n"
         .to_string()
 }
