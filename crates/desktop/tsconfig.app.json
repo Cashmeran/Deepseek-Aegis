@@ -23,9 +23,7 @@
         "noUncheckedSideEffectImports": true,
         "baseUrl": ".",
         "paths": {
-            "@/*": [
-                "./src/*"
-            ]
+            "@/*": ["./src/ui/*"]
         },
         "types": [
             "./types"
