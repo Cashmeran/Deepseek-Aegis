@@ -670,6 +670,66 @@ impl ToolMetadata for LazyCodeGraphTool {
     fn concurrency_safety(&self) -> ConcurrencySafety { ConcurrencySafety::ConcurrentSafe }
 }
 
+// ── Codebase scan tool (on-demand, AI decides when to index) ──────
+
+struct ScanCodebaseTool {
+    db_path: std::path::PathBuf,
+}
+
+#[async_trait]
+impl Tool for ScanCodebaseTool {
+    async fn execute(self: Arc<Self>, tool_use: &ToolUse, _ctx: &ToolContext) -> AgentResult<ToolResultMessage> {
+        let start = std::time::Instant::now();
+        let dir = tool_use.input.get("directory").and_then(|v| v.as_str())
+            .map(|d| std::path::PathBuf::from(d))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+        match aegis_code_graph::SqliteGraphStore::open(&self.db_path) {
+            Ok(store) => {
+                let store: Arc<dyn aegis_code_graph::GraphStore> = Arc::new(store);
+                let lang_registry = Arc::new(aegis_code_graph::create_default_registry());
+                let parser = Arc::new(aegis_code_graph::CodeParser::new(lang_registry.clone()));
+                let indexer = aegis_code_graph::IncrementalIndexer::new(store, parser, lang_registry);
+                match indexer.full_scan(&dir) {
+                    Ok(r) => {
+                        let _ = rusqlite::Connection::open(&self.db_path)
+                            .and_then(|c| c.pragma_update(None, "wal_checkpoint", "TRUNCATE"));
+                        Ok(ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: false,
+                            content: vec![ContentBlock::Text {
+                                text: format!("Indexed {} files in {}ms.", r.total_files, r.elapsed_ms)
+                            }],
+                            elapsed_ms: start.elapsed().as_millis() as u64 })
+                    }
+                    Err(e) => Ok(ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: true,
+                        content: vec![ContentBlock::Text { text: format!("Scan failed: {e}") }],
+                        elapsed_ms: start.elapsed().as_millis() as u64 }),
+                }
+            }
+            Err(e) => Ok(ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: true,
+                content: vec![ContentBlock::Text { text: format!("DB error: {e}") }],
+                elapsed_ms: start.elapsed().as_millis() as u64 }),
+        }
+    }
+}
+
+impl ToolMetadata for ScanCodebaseTool {
+    fn schema(&self) -> ToolSchema {
+        ToolSchema {
+            name: "scan_codebase".into(),
+            description: "Index source files into the code knowledge graph. Call this before using get_architectural_context or impact_map to ensure the target files are indexed. Pass no arguments to scan the entire project.".into(),
+            prompt: "Use to index files before querying the code graph.".into(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "directory": { "type": "string", "description": "Directory to scan. Omit to scan the entire workspace." }
+                }
+            }),
+        }
+    }
+    fn risk_level(&self) -> RiskLevel { RiskLevel::Low }
+    fn concurrency_safety(&self) -> ConcurrencySafety { ConcurrencySafety::ConcurrentSafe }
+}
+
 // ── Impact map tool (blast radius, per-call connection) ─────────
 
 struct ImpactMapTool {
@@ -1047,33 +1107,10 @@ fn spawn_agent(
     {
         let db_path = graph_db2.clone();
         let db_path2 = db_path.clone();
+        let scan_db = graph_db2.clone();
         registry.register(Arc::new(LazyCodeGraphTool { db_path }))?;
         registry.register(Arc::new(ImpactMapTool { db_path: db_path2 }))?;
-
-        // Background scan — TUI starts immediately
-        let graph_db3 = graph_db2.clone();
-        tokio::task::spawn_blocking(move || {
-            let cwd = std::env::current_dir().unwrap_or_default();
-            match aegis_code_graph::SqliteGraphStore::open(&graph_db3) {
-                Ok(store) => {
-                    let store: Arc<dyn aegis_code_graph::GraphStore> = Arc::new(store);
-                    let lang_registry = Arc::new(aegis_code_graph::create_default_registry());
-                    let parser = Arc::new(aegis_code_graph::CodeParser::new(lang_registry.clone()));
-                    let indexer = aegis_code_graph::IncrementalIndexer::new(store, parser, lang_registry);
-                    match indexer.full_scan(&cwd) {
-                        Ok(r) => {
-                            tracing::info!("Code graph scan complete: {} files, {}ms", r.total_files, r.elapsed_ms);
-                            // Checkpoint WAL to keep DB fast on next startup
-                            if let Ok(conn) = rusqlite::Connection::open(&graph_db3) {
-                                let _ = conn.pragma_update(None, "wal_checkpoint", "TRUNCATE");
-                            }
-                        }
-                        Err(e) => tracing::warn!("Code graph scan failed: {e}"),
-                    }
-                }
-                Err(e) => tracing::warn!("Code graph open failed: {e}"),
-            }
-        });
+        registry.register(Arc::new(ScanCodebaseTool { db_path: scan_db }))?;
     }
 
     // ── Codebase overview loaded in background after TUI starts ──
