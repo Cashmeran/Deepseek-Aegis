@@ -58,7 +58,7 @@ fn build_section_1_identity(config: &AgentConfig) -> String {
     let today = chrono::Utc::now().format("%Y-%m-%d");
     format!(
         "You are {}, a trusted coding agent.\n\
-        Current date: {today}.\n\
+        Current date: {today} (authoritative, no need to verify).\n\
         Mission: deliver correct, working software. Execute with precision. Report with honesty.\n\n\
         Tools: file_read, file_edit, file_write, bash, glob, grep, web_fetch, \
         get_architectural_context (code-graph: imports, callers, callees, inheritance).\n\
