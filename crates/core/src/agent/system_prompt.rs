@@ -507,7 +507,7 @@ mod tests {
     #[test] fn s2_mandatory_tool_use() {
         let s = build_section_3_mandatory_tool_use(&AgentConfig::default());
         assert!(s.contains("NEVER answer")); assert!(s.contains("Arithmetic"));
-        assert!(s.contains("Hashes")); assert!(s.contains("time"));
+        assert!(s.contains("Hashes")); assert!(s.contains("date"));
     }
     #[test] fn s3_execution() {
         let s = build_section_4_execution(&AgentConfig::default());
