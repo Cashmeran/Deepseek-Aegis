@@ -50,13 +50,7 @@ curl -fsSL https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/insta
 
 如果想让 `aegis` 在任何目录都能运行，把解压出来的 `aegis` 复制到 `/usr/local/bin/`（Linux/macOS）或手动加到系统 PATH（Windows）。
 
-### 方式三：Cargo 安装
-
-```bash
-cargo install aegis-cli --locked
-```
-
-### 方式四：源码编译
+### 方式三：源码编译
 
 ```bash
 git clone https://github.com/Cashmeran/Deepseek-Aegis.git
