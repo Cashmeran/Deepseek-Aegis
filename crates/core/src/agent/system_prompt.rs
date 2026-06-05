@@ -37,6 +37,7 @@ type SectionList = &'static [fn(&AgentConfig) -> String];
 // ══════════════ SECTION ORDER — single source of truth ══════════════
 
 const STATIC_ORDER: SectionList = &[
+    build_section_0_date,
     build_section_1_identity,
     build_section_2_task_complexity,
     build_section_3_mandatory_tool_use,
@@ -50,15 +51,19 @@ const STATIC_ORDER: SectionList = &[
     build_section_11_thinking_strategy,
 ];
 
-// ══════════════ SECTION 1-10 ══════════════
+// ══════════════ SECTION 0 (date) + 1-10 ══════════════
+
+/// S0: Current date — dedicated section, CC format.
+fn build_section_0_date(_config: &AgentConfig) -> String {
+    let today = chrono::Utc::now().format("%Y-%m-%d");
+    format!("# currentDate\nToday's date is {today}.\n\n")
+}
 
 /// S1: Identity — who you are, what you have, full capability inventory.
 ///
 fn build_section_1_identity(config: &AgentConfig) -> String {
-    let today = chrono::Utc::now().format("%Y-%m-%d");
     format!(
         "You are {}, a trusted coding agent.\n\
-        Today is {today}. The date is injected into the conversation — do not verify it.\n\
         Mission: deliver correct, working software. Execute with precision. Report with honesty.\n\n\
         Tools: file_read, file_edit, file_write, bash, glob, grep, web_fetch, \
         get_architectural_context (code-graph: imports, callers, callees, inheritance).\n\
