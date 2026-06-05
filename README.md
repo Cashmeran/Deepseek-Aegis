@@ -26,25 +26,37 @@ $ aegis
 
 ## 安装
 
-### 预编译二进制
+### 方式一：一键安装（推荐）
 
-```bash
-# Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/install.sh | bash
-```
+**Windows** — 打开 PowerShell，粘贴运行：
 
 ```powershell
-# Windows PowerShell（管理员运行）
 irm https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/install.ps1 | iex
 ```
 
-### Cargo
+**Linux / macOS** — 打开终端，粘贴运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Cashmeran/Deepseek-Aegis/main/install.sh | bash
+```
+
+这会自动下载、解压到 `~/.local/bin`（或 `%LOCALAPPDATA%\aegis`），并加入 PATH。之后在任何终端输入 `aegis` 即可启动。
+
+### 方式二：手动下载
+
+1. 打开 [Releases 页面](https://github.com/Cashmeran/Deepseek-Aegis/releases)
+2. 下载对应系统的 zip / tar.gz
+3. 解压，双击 `aegis`（Windows）或在终端 `./aegis`（Linux/macOS）
+
+如果想让 `aegis` 在任何目录都能运行，把解压出来的 `aegis` 复制到 `/usr/local/bin/`（Linux/macOS）或手动加到系统 PATH（Windows）。
+
+### 方式三：Cargo 安装
 
 ```bash
 cargo install aegis-cli --locked
 ```
 
-### 源码
+### 方式四：源码编译
 
 ```bash
 git clone https://github.com/Cashmeran/Deepseek-Aegis.git
@@ -55,30 +67,20 @@ cargo build --release
 
 ### 配置 API Key
 
-首次运行没有 key 会提示输入，自动保存。或者手动写。
+首次运行如果没配 Key，会在终端里提示你输入，自动保存到 `~/.aegis/config.toml`。
 
-<details>
-<summary><strong>配置方式和环境变量</strong></summary>
-
-`~/.aegis/config.toml`：
+也可以提前手动创建（或以后修改）：
 
 ```toml
+# ~/.aegis/config.toml
 api_key = "sk-..."
-model = "deepseek-v4-pro"      
-effort = "max"                  # off / high / max
-acp_port = 9876                 # ACP 服务端口，0 禁用
+model = "deepseek-v4-pro"
+effort = "max"
 ```
 
-环境变量会覆盖配置文件：
-
-```bash
-export DEEPSEEK_API_KEY="sk-..."
-export DEEPSEEK_MODEL="deepseek-v4-flash"
-```
+环境变量也能用：`export DEEPSEEK_API_KEY="sk-..."`
 
 [获取 DeepSeek API Key](https://platform.deepseek.com/api_keys)
-
-</details>
 
 ---
 
