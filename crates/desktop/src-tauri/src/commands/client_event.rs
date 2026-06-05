@@ -73,6 +73,14 @@ fn build_agent(api_key: &str, model: &str) -> Result<AgentLoop<DeepSeekClient>, 
     Ok(agent)
 }
 
+// ── Config loader (frontend calls this on startup) ────────────────
+
+#[tauri::command]
+pub fn get_config() -> Result<serde_json::Value, String> {
+    let (key, model) = read_api_key();
+    Ok(serde_json::json!({ "apiKey": key, "model": model }))
+}
+
 // ── Main command handler ──────────────────────────────────────────
 
 #[tauri::command]

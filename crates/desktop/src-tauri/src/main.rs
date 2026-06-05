@@ -23,6 +23,7 @@ fn main() {
       commands::session::session_list,
       commands::session::recent_cwds,
       commands::client_event::client_event,
+      commands::client_event::get_config,
     ])
     .run(tauri::generate_context!())
     .expect("error while running aegis desktop");

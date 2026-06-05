@@ -1,4 +1,4 @@
-import type { PermissionMode, ProviderConfig, ProviderKind } from "../types";
+import type { PermissionMode, 服务商Config, 服务商Kind } from "../types";
 
 export const DEEPSEEK_MODELS = [
   "deepseek-v4-pro",
@@ -20,7 +20,7 @@ export const OPENAI_MODELS = [
   "gpt-4.1-nano"
 ];
 
-export function ProviderSettings({
+export function 服务商Settings({
   value,
   onChange,
   config,
@@ -28,20 +28,20 @@ export function ProviderSettings({
   permissionMode,
   onPermissionModeChange
 }: {
-  value: ProviderKind;
-  onChange: (value: ProviderKind) => void;
-  config: ProviderConfig;
-  onConfigChange: (value: ProviderConfig) => void;
+  value: 服务商Kind;
+  onChange: (value: 服务商Kind) => void;
+  config: 服务商Config;
+  onConfigChange: (value: 服务商Config) => void;
   permissionMode: PermissionMode;
   onPermissionModeChange: (value: PermissionMode) => void;
 }) {
   const modelOptions = value === "deepseek" ? DEEPSEEK_MODELS : value === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-  const selectedModel = modelOptions.includes(config.model) ? config.model : "custom";
+  const selected模型 = modelOptions.includes(config.model) ? config.model : "custom";
   const apiKeyPlaceholder = value === "deepseek" ? "sk-..." : value === "anthropic" ? "sk-ant-..." : "sk-...";
   const urlPlaceholder = value === "deepseek" ? "https://api.deepseek.com/v1/chat/completions" : value === "anthropic" ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/chat/completions";
   return (
     <div className="rounded-xl border border-ink-900/10 bg-panel/80 px-3 py-3 backdrop-blur">
-      <div className="text-xs font-medium text-muted">Provider</div>
+      <div className="text-xs font-medium text-muted">服务商</div>
       <div className="mt-2 flex gap-2">
         <button
           type="button"
@@ -79,10 +79,10 @@ export function ProviderSettings({
       </div>
       <div className="mt-3 grid gap-2">
         <label className="grid gap-1 text-[11px] font-medium text-muted">
-          Model Preset
+          模型预设
           <select
             className="rounded-lg border border-ink-900/10 bg-white px-3 py-2 text-xs text-ink-800 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
-            value={selectedModel}
+            value={selected模型}
             onChange={(event) => {
               const next = event.target.value;
               if (next === "custom") return;
@@ -106,7 +106,7 @@ export function ProviderSettings({
           />
         </label>
         <label className="grid gap-1 text-[11px] font-medium text-muted">
-          Model
+          模型
           <input
             className="rounded-lg border border-ink-900/10 bg-white px-3 py-2 text-xs text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20"
             placeholder={modelOptions[0]}
@@ -125,7 +125,7 @@ export function ProviderSettings({
         </label>
       </div>
       <div className="mt-4 border-t border-ink-900/10 pt-3">
-        <div className="text-xs font-medium text-muted">Permissions</div>
+        <div className="text-xs font-medium text-muted">权限</div>
         <div className="mt-2 grid gap-2">
           <button
             type="button"
@@ -136,7 +136,7 @@ export function ProviderSettings({
                 : "border-ink-900/10 bg-white text-muted hover:border-ink-900/20 hover:text-ink-700"
             }`}
           >
-            Edit automatically
+            自动编辑
           </button>
           <button
             type="button"
@@ -147,7 +147,7 @@ export function ProviderSettings({
                 : "border-ink-900/10 bg-white text-muted hover:border-ink-900/20 hover:text-ink-700"
             }`}
           >
-            Ask before edits
+            编辑前询问
           </button>
         </div>
       </div>
