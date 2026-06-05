@@ -74,6 +74,10 @@ pub fn load_config() -> AegisConfig {
         if let Ok(p) = port.parse() { config.acp_port = p; }
     }
 
+    // Fallback: if nothing set model/effort, use defaults
+    if config.model.is_empty() { config.model = default_model(); }
+    if config.effort.is_empty() { config.effort = default_effort(); }
+
     config
 }
 
