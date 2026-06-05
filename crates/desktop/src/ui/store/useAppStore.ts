@@ -260,17 +260,68 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
 
-      case "stream.message": {
-        const { sessionId, message } = event.payload;
-        if (message.type === "stream_event") break;
+      case "stream.delta": {
+        const { sessionId, text } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
-          return {
-            sessions: {
-              ...state.sessions,
-              [sessionId]: { ...existing, messages: [...existing.messages, message] }
+          const msgs = [...existing.messages];
+          const last = msgs[msgs.length - 1];
+          // Append to last assistant message if it exists
+          if (last && last.type === "assistant") {
+            msgs[msgs.length - 1] = { ...last, text: (last.text || "") + text };
+          } else {
+            msgs.push({ type: "assistant", text });
+          }
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs, status: "running" } } };
+        });
+        break;
+      }
+
+      case "stream.thinking": {
+        const { sessionId, text } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          const msgs = [...existing.messages];
+          const last = msgs[msgs.length - 1];
+          if (last && last.type === "thinking") {
+            msgs[msgs.length - 1] = { ...last, text: (last.text || "") + text };
+          } else {
+            msgs.push({ type: "thinking", text });
+          }
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs } } };
+        });
+        break;
+      }
+
+      case "stream.tool_start": {
+        const { sessionId, id, name, input } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: [...existing.messages, { type: "tool_use", id, name, input, status: "pending" }] } } };
+        });
+        break;
+      }
+
+      case "stream.tool_result": {
+        const { sessionId, id, name, is_error, output, elapsed_ms } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          const msgs = existing.messages.map(m => {
+            if (m.type === "tool_use" && (m as Record<string,unknown>).id === id) {
+              return { ...m, status: is_error ? "error" : "success", output, elapsed_ms };
             }
-          };
+            return m;
+          });
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs } } };
+        });
+        break;
+      }
+
+      case "stream.done": {
+        const { sessionId, input_tokens, output_tokens, cost } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: [...existing.messages, { type: "usage", input_tokens, output_tokens, cost }] } } };
         });
         break;
       }
@@ -279,15 +330,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { sessionId, prompt } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
-          return {
-            sessions: {
-              ...state.sessions,
-              [sessionId]: {
-                ...existing,
-                messages: [...existing.messages, { type: "user_prompt", prompt }]
-              }
-            }
-          };
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: [...existing.messages, { type: "user_prompt", prompt }] } } };
         });
         break;
       }

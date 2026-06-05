@@ -77,14 +77,38 @@ function App() {
                 <h2 style={{ fontSize: 18, margin: 0 }}>{activeSession.title || activeSession.id}</h2>
                 <span style={{ fontSize: 12, color: '#8b949e' }}>{activeSession.status}</span>
               </div>
-              {activeSession.messages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: 8, padding: 12, background: '#161b22', borderRadius: 8, fontSize: 13, maxWidth: '100%', overflow: 'auto' }}>
-                  <div style={{ color: '#58a6ff', marginBottom: 4, fontWeight: 600 }}>{typeof msg.type === 'string' ? msg.type : 'message'}</div>
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflow: 'auto' }}>
-                    {JSON.stringify(msg, null, 2).slice(0, 2000)}
-                  </pre>
-                </div>
-              ))}
+              {activeSession.messages.map((msg: Record<string, unknown>, i: number) => {
+                const msgType = msg.type as string;
+                if (msgType === "user_prompt") return (
+                  <div key={i} style={{ marginBottom: 12, padding: '8px 14px', background: '#1a2332', borderRadius: 8, fontSize: 13, borderLeft: '3px solid #58a6ff' }}>
+                    <div style={{ color: '#58a6ff', fontSize: 11, marginBottom: 4 }}>You</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.prompt as string}</div>
+                  </div>
+                );
+                if (msgType === "assistant") return (
+                  <div key={i} style={{ marginBottom: 12, padding: '8px 14px', background: '#161b22', borderRadius: 8, fontSize: 13 }}>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text as string}</div>
+                  </div>
+                );
+                if (msgType === "thinking") return (
+                  <div key={i} style={{ marginBottom: 8, padding: '6px 12px', background: '#1a1a2e', borderRadius: 6, fontSize: 12, color: '#8b949e', fontStyle: 'italic', borderLeft: '2px solid #30363d' }}>
+                    {msg.text as string}
+                  </div>
+                );
+                if (msgType === "tool_use") return (
+                  <div key={i} style={{ marginBottom: 8, padding: '6px 12px', background: '#1a2818', borderRadius: 6, fontSize: 12, borderLeft: '2px solid #3fb950' }}>
+                    <span style={{ color: '#3fb950', fontWeight: 600 }}>{msg.name as string}</span>
+                    <span style={{ color: '#8b949e', marginLeft: 8 }}>{msg.status as string}</span>
+                    {msg.output ? <pre style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap', fontSize: 11, maxHeight: 200, overflow: 'auto' }}>{msg.output as string}</pre> : null}
+                  </div>
+                );
+                if (msgType === "usage") return (
+                  <div key={i} style={{ marginBottom: 8, padding: '4px 12px', fontSize: 11, color: '#8b949e', textAlign: 'center' }}>
+                    Tokens: {(msg as Record<string,unknown>).input_tokens as number} in / {(msg as Record<string,unknown>).output_tokens as number} out · Cost: ${(msg as Record<string,unknown>).cost as number}
+                  </div>
+                );
+                return null;
+              })}
             </div>
           ) : (
             <div style={{ textAlign: 'center', marginTop: 100 }}>
