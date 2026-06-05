@@ -190,7 +190,10 @@ impl DeepSeekClient {
                     }],
                 }))
             }
-            Message::System(_) => None, // system prompt 单独发送
+            Message::System(m) => Some(serde_json::json!({
+                "role": "user",
+                "content": m.content,
+            })),
         }
     }
 
