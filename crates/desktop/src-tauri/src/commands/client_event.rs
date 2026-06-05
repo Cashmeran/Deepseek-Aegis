@@ -106,6 +106,12 @@ pub async fn client_event(
             }
 
             let session = state.create_session(title, cwd.clone());
+            state.store_provider(&session.id, crate::state::ProviderSettings {
+                provider: crate::events::ProviderKind::DeepSeek,
+                api_key: api_key.clone(),
+                model: model.clone(),
+                base_url: None,
+            });
             let sid = session.id.clone();
 
             emit(&app, ServerEvent::SessionStatusEvent {

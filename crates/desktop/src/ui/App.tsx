@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useIPC } from "./hooks/useIPC";
 import { useAppStore } from "./store/useAppStore";
 import type { ServerEvent, ClientEvent } from "./types";
-// import { Sidebar } from "./components/Sidebar";  // TODO: fix Sidebar crash
+import { Sidebar } from "./components/Sidebar";
+import MDContent from "./render/markdown";
 
 function App() {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const initConfig = useAppStore((s) => s.initConfig);
   useEffect(() => { initConfig(); }, []);
 
@@ -16,19 +18,27 @@ function App() {
   const setActiveSessionId = useAppStore((s) => s.setActiveSessionId);
   const providerConfigs = useAppStore((s) => s.providerConfigs);
   const globalError = useAppStore((s) => s.globalError);
+  const setGlobalError = useAppStore((s) => s.setGlobalError);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [cwd, setCwd] = useState("");
   const [projectName, setProjectName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [pendingSend, setPendingSend] = useState(false);
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null;
+  const isRunning = activeSession?.status === "running";
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeSession?.messages]);
 
   const handleNewSession = useCallback(() => {
     const cfg = providerConfigs.deepseek;
-    if (!cfg.apiKey) { alert("请先配置 API Key"); return; }
-    const name = projectName.trim() || (cwd ? cwd.split(/[\\/]/).pop() || cwd : "新会话");
+    if (!cfg.apiKey) { alert("请先在设置中配置 API Key"); return; }
+    const name = projectName.trim() || (cwd ? cwd.split(/[\\/]/).pop() || cwd : "新项目");
+    setPendingSend(true);
     sendEvent({
       type: "session.start",
       payload: { title: name, prompt: prompt || "Hello", cwd: cwd || undefined, provider: "deepseek", apiKey: cfg.apiKey, model: cfg.model },
@@ -48,94 +58,144 @@ function App() {
     sendEvent({ type: "session.delete", payload: { sessionId: id } });
   }, [sendEvent]);
 
-  return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0d1117', color: '#c9d1d9', fontFamily: 'system-ui, sans-serif' }}>
-      {/* Inline sidebar while Sidebar component is broken */}
-      <div style={{ width: sidebarCollapsed ? 40 : 220, borderRight: '1px solid #21262d', padding: 12, transition: 'width 0.2s', overflow: 'hidden', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: 13 }}>{sidebarCollapsed ? '>>' : '<<'}</button>
-          {!sidebarCollapsed && <button onClick={() => setShowNewModal(true)} style={{ flex: 1, padding: '6px 12px', background: '#20b380', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: 13 }}>+ 新建项目</button>}
-        </div>
-        {!sidebarCollapsed && Object.values(sessions).map(s => (
-          <div key={s.id} onClick={() => setActiveSessionId(s.id)}
-            style={{ padding: '6px 8px', cursor: 'pointer', background: s.id === activeSessionId ? '#21262d' : 'transparent', borderRadius: 6, marginTop: 4, fontSize: 13 }}>
-            {s.title || s.id}
-            <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
-              style={{ float: 'right', background: 'none', border: 'none', color: '#f85149', cursor: 'pointer', fontSize: 11 }}>x</button>
-          </div>
-        ))}
-        <div style={{ position: 'absolute', bottom: 12, fontSize: 11, color: connected ? '#3fb950' : '#f85149' }}>
-          {connected ? '已连接' : '未连接'}
-        </div>
-      </div>
+  // Clear pending when session status changes
+  useEffect(() => {
+    if (activeSession && activeSession.status !== "running" && pendingSend) {
+      setPendingSend(false);
+    }
+  }, [activeSession?.status]);
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+  return (
+    <div className="flex h-screen bg-surface text-ink-900">
+      <Sidebar
+        connected={connected}
+        collapsed={sidebarCollapsed}
+        onNewSession={() => setShowNewModal(true)}
+        onDeleteSession={handleDeleteSession}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Messages area */}
+        <div className="flex-1 overflow-auto px-6 py-4">
           {globalError && (
-            <div style={{ padding: 12, background: '#490202', borderRadius: 8, marginBottom: 12, color: '#f85149', fontSize: 13 }}>{globalError}</div>
+            <div className="mb-4 rounded-xl bg-red-900/30 border border-red-800 px-4 py-3 text-sm text-red-300">
+              {globalError}
+              <button className="ml-3 underline" onClick={() => setGlobalError(null)}>Dismiss</button>
+            </div>
           )}
+
           {activeSession ? (
             <div>
-              <div style={{ marginBottom: 16 }}>
-                <h2 style={{ fontSize: 18, margin: 0 }}>{activeSession.title || activeSession.id}</h2>
-                <span style={{ fontSize: 12, color: '#8b949e' }}>{activeSession.status}</span>
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-ink-800">{activeSession.title || activeSession.id}</h2>
+                <span className="text-xs text-muted">{activeSession.cwd || '默认目录'} · {activeSession.status}</span>
               </div>
+
               {activeSession.messages.map((msg: Record<string, unknown>, i: number) => {
                 const msgType = msg.type as string;
                 if (msgType === "user_prompt") return (
-                  <div key={i} style={{ marginBottom: 12, padding: '8px 14px', background: '#1a2332', borderRadius: 8, fontSize: 13, borderLeft: '3px solid #58a6ff' }}>
-                    <div style={{ color: '#58a6ff', fontSize: 11, marginBottom: 4 }}>You</div>
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.prompt as string}</div>
+                  <div key={i} className="mb-5 ml-8">
+                    <div className="text-xs text-accent mb-1 font-medium">You</div>
+                    <div className="rounded-2xl rounded-tr-md bg-surface-secondary border border-ink-900/10 px-5 py-3 text-sm leading-relaxed">
+                      <MDContent text={String(msg.prompt ?? "")} />
+                    </div>
                   </div>
                 );
                 if (msgType === "assistant") return (
-                  <div key={i} style={{ marginBottom: 12, padding: '8px 14px', background: '#161b22', borderRadius: 8, fontSize: 13 }}>
-                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text as string}</div>
+                  <div key={i} className="mb-5 mr-8">
+                    <div className="rounded-2xl rounded-tl-md bg-panel border border-ink-900/10 px-5 py-3 text-sm leading-relaxed">
+                      <MDContent text={String(msg.text ?? "")} />
+                    </div>
                   </div>
                 );
                 if (msgType === "thinking") return (
-                  <div key={i} style={{ marginBottom: 8, padding: '6px 12px', background: '#1a1a2e', borderRadius: 6, fontSize: 12, color: '#8b949e', fontStyle: 'italic', borderLeft: '2px solid #30363d' }}>
-                    {msg.text as string}
+                  <div key={i} className="mb-3 mx-8">
+                    <details className="text-xs text-muted">
+                      <summary className="cursor-pointer italic py-1">Thinking...</summary>
+                      <div className="mt-2 pl-3 border-l-2 border-ink-900/20 whitespace-pre-wrap">{msg.text as string}</div>
+                    </details>
                   </div>
                 );
                 if (msgType === "tool_use") return (
-                  <div key={i} style={{ marginBottom: 8, padding: '6px 12px', background: '#1a2818', borderRadius: 6, fontSize: 12, borderLeft: '2px solid #3fb950' }}>
-                    <span style={{ color: '#3fb950', fontWeight: 600 }}>{msg.name as string}</span>
-                    <span style={{ color: '#8b949e', marginLeft: 8 }}>{msg.status as string}</span>
-                    {msg.output ? <pre style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap', fontSize: 11, maxHeight: 200, overflow: 'auto' }}>{msg.output as string}</pre> : null}
+                  <div key={i} className="mb-3 mx-8">
+                    <div className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${
+                      msg.status === "error" ? "border-red-800 bg-red-900/20 text-red-300" :
+                      msg.status === "success" ? "border-green-800 bg-green-900/20 text-green-300" :
+                      "border-ink-900/20 bg-surface-tertiary text-ink-700"
+                    }`}>
+                      <span className="font-semibold">{msg.name as string}</span>
+                      <span className="text-muted">{msg.status as string}</span>
+                      {msg.elapsed_ms ? <span className="text-muted ml-auto">{(msg.elapsed_ms as number)}ms</span> : null}
+                    </div>
+                    {msg.output ? (
+                      <details className="mt-1">
+                        <summary className="text-xs text-muted cursor-pointer">Output</summary>
+                        <pre className="mt-1 p-3 rounded-lg bg-surface-tertiary text-xs whitespace-pre-wrap max-h-48 overflow-auto">{msg.output as string}</pre>
+                      </details>
+                    ) : null}
                   </div>
                 );
                 if (msgType === "usage") return (
-                  <div key={i} style={{ marginBottom: 8, padding: '4px 12px', fontSize: 11, color: '#8b949e', textAlign: 'center' }}>
-                    Tokens: {(msg as Record<string,unknown>).input_tokens as number} in / {(msg as Record<string,unknown>).output_tokens as number} out · Cost: ${(msg as Record<string,unknown>).cost as number}
+                  <div key={i} className="mb-6 text-center">
+                    <span className="text-xs text-muted bg-surface-secondary rounded-full px-4 py-1">
+                      Tokens: {(msg as Record<string,unknown>).input_tokens as number} in / {(msg as Record<string,unknown>).output_tokens as number} out
+                      · Cost: ${Number((msg as Record<string,unknown>).cost).toFixed(4)}
+                    </span>
                   </div>
                 );
                 return null;
               })}
+
+              {isRunning && (
+                <div className="flex items-center gap-3 ml-8 mb-5 text-sm text-muted">
+                  <span className="flex h-2 w-2"><span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-accent opacity-75"/><span className="relative inline-flex rounded-full h-2 w-2 bg-accent"/></span>
+                  Agent is working...
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
           ) : (
-            <div style={{ textAlign: 'center', marginTop: 100 }}>
-              <h1 style={{ fontSize: 28, marginBottom: 8 }}>Aegis Desktop</h1>
-              <p style={{ color: '#8b949e', marginBottom: 4 }}>{connected ? '已连接后端' : '未连接'} | {Object.keys(sessions).length} 个会话</p>
-              <p style={{ color: '#8b949e', fontSize: 13 }}>
-                API Key: {providerConfigs.deepseek.apiKey ? '已配置' : '未配置'}
+            <div className="flex flex-col items-center justify-center h-full text-center -mt-20">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10 text-2xl font-bold text-accent mb-4">ag</div>
+              <h1 className="text-2xl font-semibold text-ink-800 mb-2">Aegis Desktop</h1>
+              <p className="text-muted text-sm mb-1">{connected ? '已连接后端' : '未连接'}</p>
+              <p className="text-muted text-xs mb-6">
+                API Key: {providerConfigs.deepseek.apiKey ? '已配置 (' + providerConfigs.deepseek.model + ')' : '未配置 — 请点侧边栏齿轮图标设置'}
               </p>
-              {!providerConfigs.deepseek.apiKey && (
-                <p style={{ color: '#f85149', fontSize: 12, marginTop: 8 }}>请在侧边栏设置中配置 API Key，或创建 ~/.aegis/config.toml</p>
-              )}
+              <button onClick={() => setShowNewModal(true)}
+                className="rounded-full bg-accent px-6 py-3 text-sm font-medium text-white hover:bg-accent-hover transition-colors">
+                + 新建项目
+              </button>
             </div>
           )}
         </div>
 
+        {/* Input bar */}
         {activeSession && (
-          <div style={{ borderTop: '1px solid #21262d', padding: 12 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={prompt} onChange={e => setPrompt(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleContinue(); } }}
-                placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
-                style={{ flex: 1, padding: '10px 14px', background: '#161b22', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none' }} />
-              <button onClick={handleContinue}
-                style={{ padding: '10px 20px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <div className="border-t border-ink-900/10 px-6 py-3">
+            <div className="flex gap-3 items-end">
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleContinue(); }
+                }}
+                placeholder={isRunning ? "Agent is working..." : "输入消息，Enter 发送，Shift+Enter 换行..."}
+                rows={1}
+                disabled={isRunning}
+                className="flex-1 resize-none rounded-xl border border-ink-900/10 bg-surface-secondary px-4 py-3 text-sm text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
+                style={{ minHeight: 44, maxHeight: 200 }}
+                onInput={e => {
+                  const el = e.currentTarget;
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+                }}
+              />
+              <button
+                onClick={handleContinue}
+                disabled={!prompt.trim() || isRunning}
+                className="rounded-xl bg-accent px-5 py-3 text-sm font-medium text-white hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
                 发送
               </button>
             </div>
@@ -143,35 +203,40 @@ function App() {
         )}
       </div>
 
+      {/* New project modal */}
       {showNewModal && (
-        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', zIndex: 50 }}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowNewModal(false)}>
-          <div style={{ background: '#161b22', borderRadius: 12, padding: 24, width: 480, maxHeight: '80vh', overflow: 'auto' }}
+          <div className="bg-panel rounded-2xl border border-ink-900/20 p-6 w-full max-w-md shadow-2xl"
             onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: 18, marginBottom: 16, marginTop: 0 }}>新建项目</h2>
-            <div style={{ marginBottom: 12, fontSize: 12, color: '#8b949e' }}>
+            <h2 className="text-lg font-semibold text-ink-800 mb-4">新建项目</h2>
+            <div className="mb-3 text-xs text-muted">
               API Key: {providerConfigs.deepseek.apiKey ? '已配置 (' + providerConfigs.deepseek.model + ')' : '未配置'}
             </div>
-            <label style={{ display: 'block', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>项目名称</div>
-              <input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="输入项目名称"
-                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-            </label>
-            <label style={{ display: 'block', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>工作目录（可选）</div>
-              <input value={cwd} onChange={e => setCwd(e.target.value)} placeholder="留空使用当前目录"
-                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-            </label>
-            <label style={{ display: 'block', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>初始提示词（可选）</div>
-              <textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="直接告诉 Agent 要做什么...（可选）"
-                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
-            </label>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <input
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              placeholder="项目名称（留空使用目录名）"
+              className="w-full mb-3 rounded-xl border border-ink-900/10 bg-surface-secondary px-4 py-2.5 text-sm text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none"
+            />
+            <input
+              value={cwd}
+              onChange={e => setCwd(e.target.value)}
+              placeholder="工作目录（留空使用当前目录）"
+              className="w-full mb-3 rounded-xl border border-ink-900/10 bg-surface-secondary px-4 py-2.5 text-sm text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none"
+            />
+            <textarea
+              rows={3}
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              placeholder="初始提示词（可选）"
+              className="w-full mb-4 rounded-xl border border-ink-900/10 bg-surface-secondary px-4 py-3 text-sm text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none resize-none"
+            />
+            <div className="flex gap-3 justify-end">
               <button onClick={() => setShowNewModal(false)}
-                style={{ padding: '8px 16px', background: '#21262d', border: 'none', borderRadius: 8, color: '#c9d1d9', cursor: 'pointer' }}>取消</button>
+                className="rounded-full px-5 py-2 text-sm text-muted hover:text-ink-700 transition-colors">取消</button>
               <button onClick={handleNewSession}
-                style={{ padding: '8px 16px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }}>创建项目</button>
+                className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors">创建项目</button>
             </div>
           </div>
         </div>
