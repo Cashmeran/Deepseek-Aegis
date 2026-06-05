@@ -20,6 +20,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [cwd, setCwd] = useState("");
+  const [projectName, setProjectName] = useState("");
   const [prompt, setPrompt] = useState("");
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : null;
@@ -27,13 +28,15 @@ function App() {
   const handleNewSession = useCallback(() => {
     const cfg = providerConfigs.deepseek;
     if (!cfg.apiKey) { alert("请先配置 API Key"); return; }
+    const name = projectName.trim() || (cwd ? cwd.split(/[\\/]/).pop() || cwd : "新会话");
     sendEvent({
       type: "session.start",
-      payload: { title: prompt.slice(0, 30) || "新会话", prompt, cwd: cwd || undefined, provider: "deepseek", apiKey: cfg.apiKey, model: cfg.model },
+      payload: { title: name, prompt: prompt || "Hello", cwd: cwd || undefined, provider: "deepseek", apiKey: cfg.apiKey, model: cfg.model },
     });
     setShowNewModal(false);
+    setProjectName("");
     setPrompt("");
-  }, [sendEvent, prompt, cwd, providerConfigs]);
+  }, [sendEvent, projectName, prompt, cwd, providerConfigs]);
 
   const handleContinue = useCallback(() => {
     if (!prompt.trim() || !activeSessionId) return;
@@ -51,7 +54,7 @@ function App() {
       <div style={{ width: sidebarCollapsed ? 40 : 220, borderRight: '1px solid #21262d', padding: 12, transition: 'width 0.2s', overflow: 'hidden', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: 13 }}>{sidebarCollapsed ? '>>' : '<<'}</button>
-          {!sidebarCollapsed && <button onClick={() => setShowNewModal(true)} style={{ flex: 1, padding: '6px 12px', background: '#20b380', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: 13 }}>+ 新建</button>}
+          {!sidebarCollapsed && <button onClick={() => setShowNewModal(true)} style={{ flex: 1, padding: '6px 12px', background: '#20b380', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: 13 }}>+ 新建项目</button>}
         </div>
         {!sidebarCollapsed && Object.values(sessions).map(s => (
           <div key={s.id} onClick={() => setActiveSessionId(s.id)}
@@ -145,25 +148,30 @@ function App() {
           onClick={() => setShowNewModal(false)}>
           <div style={{ background: '#161b22', borderRadius: 12, padding: 24, width: 480, maxHeight: '80vh', overflow: 'auto' }}
             onClick={e => e.stopPropagation()}>
-            <h2 style={{ fontSize: 18, marginBottom: 16, marginTop: 0 }}>新建会话</h2>
+            <h2 style={{ fontSize: 18, marginBottom: 16, marginTop: 0 }}>新建项目</h2>
             <div style={{ marginBottom: 12, fontSize: 12, color: '#8b949e' }}>
               API Key: {providerConfigs.deepseek.apiKey ? '已配置 (' + providerConfigs.deepseek.model + ')' : '未配置'}
             </div>
             <label style={{ display: 'block', marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>工作目录</div>
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>项目名称</div>
+              <input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="输入项目名称"
+                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+            </label>
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>工作目录（可选）</div>
               <input value={cwd} onChange={e => setCwd(e.target.value)} placeholder="留空使用当前目录"
                 style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
             </label>
             <label style={{ display: 'block', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>提示词</div>
-              <textarea rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="描述你想让 Agent 处理的任务..."
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>初始提示词（可选）</div>
+              <textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="直接告诉 Agent 要做什么...（可选）"
                 style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowNewModal(false)}
                 style={{ padding: '8px 16px', background: '#21262d', border: 'none', borderRadius: 8, color: '#c9d1d9', cursor: 'pointer' }}>取消</button>
-              <button onClick={handleNewSession} disabled={!prompt.trim()}
-                style={{ padding: '8px 16px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: prompt.trim() ? 'pointer' : 'not-allowed', opacity: prompt.trim() ? 1 : 0.5 }}>开始会话</button>
+              <button onClick={handleNewSession}
+                style={{ padding: '8px 16px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer' }}>创建项目</button>
             </div>
           </div>
         </div>
