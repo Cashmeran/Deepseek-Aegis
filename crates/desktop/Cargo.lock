@@ -43,7 +43,6 @@ dependencies = [
  "futures-util",
  "log",
  "reqwest 0.12.28",
- "rusqlite",
  "serde",
  "serde_json",
  "tauri",
