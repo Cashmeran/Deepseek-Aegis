@@ -161,7 +161,7 @@ impl App {
                             *done = true;
                             *ok = !is_error;
                             *tool_elapsed = elapsed_ms;
-                            let summary: String = output.chars().take(200).collect();
+                            let summary: String = output.chars().take(5000).collect();
                             if name == "ask_user" {
                                 *detail = format!("用户回复: {summary}");
                             } else {
@@ -185,7 +185,7 @@ impl App {
             }
             StreamEvent::ToolProgress { tool_use_id: _, line } => {
                 if let Some(Msg::Tool { detail, .. }) = self.messages.last_mut() {
-                    *detail = format!("{}", line.trim().chars().take(120).collect::<String>());
+                    *detail = format!("{}", line.trim().chars().take(500).collect::<String>());
                 }
             }
             StreamEvent::Done(resp) => {

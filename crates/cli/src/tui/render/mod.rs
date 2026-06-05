@@ -98,7 +98,7 @@ pub(crate) fn render_msg<'a>(out: &mut Vec<Line<'a>>, msg: &'a Msg, area_w: u16)
             out.push(Line::from(vec![
                 Span::styled(format!("  {icon} {name}"), name_style),
                 Span::styled(format!(" {}", time_str), dark_gray),
-                Span::styled(format!("  {:.100}", detail), Style::default().fg(Color::Gray)),
+                Span::styled(format!("  {}", detail), Style::default().fg(Color::Gray)),
             ]));
 
             // Diff coloring for file_edit results
