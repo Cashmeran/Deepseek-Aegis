@@ -1,285 +1,146 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useIPC } from "./hooks/useIPC";
-
-type PermissionResult = "allow_once" | "allow_always" | "deny";
 import { useAppStore } from "./store/useAppStore";
-import type { ServerEvent } from "./types";
-import { Sidebar } from "./components/Sidebar";
-import { StartSessionModal } from "./components/StartSessionModal";
-import { PromptInput, usePromptActions } from "./components/PromptInput";
-import { MessageCard } from "./components/EventCard";
-import MDContent from "./render/markdown";
-
-type StreamEventDelta = { type?: string; [key: string]: unknown };
-type StreamEventPayload = { type?: string; delta?: StreamEventDelta };
-type StreamEventMessage = { type: "stream_event"; event?: StreamEventPayload };
+import type { ServerEvent, ClientEvent } from "./types";
+// import { Sidebar } from "./components/Sidebar";  // TODO: fix Sidebar crash
 
 function App() {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const partialMessageRef = useRef("");
-  const [partialMessage, setPartialMessage] = useState("");
-  const [showPartialMessage, setShowPartialMessage] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const initConfig = useAppStore((s) => s.initConfig);
   useEffect(() => { initConfig(); }, []);
 
+  const handleServerEvent = useAppStore((s) => s.handleServerEvent);
+  const { connected, sendEvent } = useIPC(handleServerEvent);
+
   const sessions = useAppStore((s) => s.sessions);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const showStartModal = useAppStore((s) => s.showStartModal);
-  const setShowStartModal = useAppStore((s) => s.setShowStartModal);
+  const setActiveSessionId = useAppStore((s) => s.setActiveSessionId);
+  const providerConfigs = useAppStore((s) => s.providerConfigs);
   const globalError = useAppStore((s) => s.globalError);
-  const setGlobalError = useAppStore((s) => s.setGlobalError);
-  const historyRequested = useAppStore((s) => s.historyRequested);
-  const markHistoryRequested = useAppStore((s) => s.markHistoryRequested);
-  const resolvePermissionRequest = useAppStore((s) => s.resolvePermissionRequest);
-  const handleServerEvent = useAppStore((s) => s.handleServerEvent);
-  const prompt = useAppStore((s) => s.prompt);
-  const setPrompt = useAppStore((s) => s.setPrompt);
-  const cwd = useAppStore((s) => s.cwd);
-  const setCwd = useAppStore((s) => s.setCwd);
-  const pendingStart = useAppStore((s) => s.pendingStart);
 
-  const isStreamEventMessage = (message: unknown): message is StreamEventMessage =>
-    typeof message === "object" &&
-    message !== null &&
-    "type" in message &&
-    (message as { type?: unknown }).type === "stream_event";
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [cwd, setCwd] = useState("");
+  const [prompt, setPrompt] = useState("");
 
-  const getPartialMessageContent = (eventMessage: StreamEventPayload | undefined) => {
-    if (!eventMessage?.delta || typeof eventMessage.delta.type !== "string") return "";
-    const realType = eventMessage.delta.type.split("_")[0];
-    const value = (eventMessage.delta as Record<string, unknown>)[realType];
-    return typeof value === "string" ? value : "";
-  };
-
-  const handlePartialMessages = useCallback((partialEvent: ServerEvent) => {
-    if (partialEvent.type !== "stream.message") return;
-
-    const message = partialEvent.payload.message;
-    if (!isStreamEventMessage(message)) return;
-
-    const eventType = message.event?.type;
-    if (eventType === "content_block_start") {
-      partialMessageRef.current = "";
-      setPartialMessage(partialMessageRef.current);
-      setShowPartialMessage(true);
-    }
-
-    if (eventType === "content_block_delta") {
-      partialMessageRef.current += getPartialMessageContent(message.event) || "";
-      setPartialMessage(partialMessageRef.current);
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-
-    if (eventType === "content_block_stop") {
-      setShowPartialMessage(false);
-      setTimeout(() => {
-        partialMessageRef.current = "";
-        setPartialMessage(partialMessageRef.current);
-      }, 500);
-    }
-  }, []);
-
-  const onEvent = useCallback((event: ServerEvent) => {
-    handleServerEvent(event);
-    handlePartialMessages(event);
-  }, [handleServerEvent, handlePartialMessages]);
-
-  const { connected, sendEvent } = useIPC(onEvent);
-  const { handleStartFromModal } = usePromptActions(sendEvent, connected);
-
-  const activeSession = activeSessionId ? sessions[activeSessionId] : undefined;
-  const messages = activeSession?.messages ?? [];
-  const permissionRequests = activeSession?.permissionRequests ?? [];
-  const isRunning = activeSession?.status === "running";
-
-  useEffect(() => {
-    if (connected) sendEvent({ type: "session.list" });
-  }, [connected, sendEvent]);
-
-  useEffect(() => {
-    if (!activeSessionId || !connected) return;
-    const session = sessions[activeSessionId];
-    if (session && !session.hydrated && !historyRequested.has(activeSessionId)) {
-      markHistoryRequested(activeSessionId);
-      sendEvent({ type: "session.history", payload: { sessionId: activeSessionId } });
-    }
-  }, [activeSessionId, connected, sessions, historyRequested, markHistoryRequested, sendEvent]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, partialMessage]);
+  const activeSession = activeSessionId ? sessions[activeSessionId] : null;
 
   const handleNewSession = useCallback(() => {
-    useAppStore.getState().setActiveSessionId(null);
-    setShowStartModal(true);
-  }, [setShowStartModal]);
+    const cfg = providerConfigs.deepseek;
+    if (!cfg.apiKey) { alert("请先配置 API Key"); return; }
+    sendEvent({
+      type: "session.start",
+      payload: { title: prompt.slice(0, 30) || "新会话", prompt, cwd: cwd || undefined, provider: "deepseek", apiKey: cfg.apiKey, model: cfg.model },
+    });
+    setShowNewModal(false);
+    setPrompt("");
+  }, [sendEvent, prompt, cwd, providerConfigs]);
 
-  const handleDeleteSession = useCallback((sessionId: string) => {
-    sendEvent({ type: "session.delete", payload: { sessionId } });
+  const handleContinue = useCallback(() => {
+    if (!prompt.trim() || !activeSessionId) return;
+    sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt: prompt.trim() } });
+    setPrompt("");
+  }, [sendEvent, prompt, activeSessionId]);
+
+  const handleDeleteSession = useCallback((id: string) => {
+    sendEvent({ type: "session.delete", payload: { sessionId: id } });
   }, [sendEvent]);
 
-  const handlePermissionResult = useCallback((toolUseId: string, result: PermissionResult) => {
-    if (!activeSessionId) return;
-    sendEvent({ type: "permission.response", payload: { sessionId: activeSessionId, toolUseId, result } });
-    resolvePermissionRequest(activeSessionId, toolUseId);
-  }, [activeSessionId, sendEvent, resolvePermissionRequest]);
-
-  const sidebarWidth = sidebarCollapsed ? 0 : 280;
-  const sessionStatusLabel = useMemo(() => {
-    switch (activeSession?.status) {
-      case "running":
-        return { label: "Running", tone: "bg-info/10 text-info" };
-      case "completed":
-        return { label: "Completed", tone: "bg-success/10 text-success" };
-      case "error":
-        return { label: "Error", tone: "bg-error/10 text-error" };
-      default:
-        return { label: "Idle", tone: "bg-ink-900/5 text-ink-600" };
-    }
-  }, [activeSession?.status]);
-
   return (
-    <div
-      className="app-shell relative flex h-screen overflow-hidden bg-surface"
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-    >
-      {!sidebarCollapsed && (
-        <Sidebar
-          connected={connected}
-          onNewSession={handleNewSession}
-          onDeleteSession={handleDeleteSession}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        />
-      )}
-
-      <main className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <div
-          className="flex h-12 items-center justify-between border-b border-ink-900/10 bg-surface/80 px-6 text-sm text-ink-700 backdrop-blur select-none"
-          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-        >
-          <div className="flex items-center gap-3">
-            {sidebarCollapsed && (
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-ink-900/10 bg-surface text-ink-600 hover:bg-surface-tertiary hover:text-ink-800 transition-colors"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-label="Expand sidebar"
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-            )}
-            <span className="font-semibold text-ink-800">{activeSession?.title || "aegis"}</span>
-            {activeSession && (
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${sessionStatusLabel.tone}`}>
-                {sessionStatusLabel.label}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-error"}`} />
-            <span className="text-muted">{connected ? "Connected" : "Offline"}</span>
-          </div>
+    <div style={{ display: 'flex', height: '100vh', background: '#0d1117', color: '#c9d1d9', fontFamily: 'system-ui, sans-serif' }}>
+      {/* Inline sidebar while Sidebar component is broken */}
+      <div style={{ width: sidebarCollapsed ? 40 : 220, borderRight: '1px solid #21262d', padding: 12, transition: 'width 0.2s', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: 13 }}>{sidebarCollapsed ? '>>' : '<<'}</button>
+          {!sidebarCollapsed && <button onClick={() => setShowNewModal(true)} style={{ flex: 1, padding: '6px 12px', background: '#20b380', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: 13 }}>+ 新建</button>}
         </div>
+        {!sidebarCollapsed && Object.values(sessions).map(s => (
+          <div key={s.id} onClick={() => setActiveSessionId(s.id)}
+            style={{ padding: '6px 8px', cursor: 'pointer', background: s.id === activeSessionId ? '#21262d' : 'transparent', borderRadius: 6, marginTop: 4, fontSize: 13 }}>
+            {s.title || s.id}
+            <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }}
+              style={{ float: 'right', background: 'none', border: 'none', color: '#f85149', cursor: 'pointer', fontSize: 11 }}>x</button>
+          </div>
+        ))}
+        <div style={{ position: 'absolute', bottom: 12, fontSize: 11, color: connected ? '#3fb950' : '#f85149' }}>
+          {connected ? '已连接' : '未连接'}
+        </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-56 pt-6 lg:px-8">
-          <div className="mx-auto max-w-4xl">
-            {activeSession && (
-              <div className="mb-6 rounded-2xl border border-ink-900/10 bg-panel/80 p-5 shadow-soft backdrop-blur">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-light">Session</span>
-                    <span className="text-base font-semibold text-ink-800">{activeSession.title}</span>
-                    <span className="text-xs text-muted">{activeSession.cwd ? `Working dir: ${activeSession.cwd}` : "Working dir not set"}</span>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${sessionStatusLabel.tone}`}>
-                    {sessionStatusLabel.label}
-                  </span>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+          {globalError && (
+            <div style={{ padding: 12, background: '#490202', borderRadius: 8, marginBottom: 12, color: '#f85149', fontSize: 13 }}>{globalError}</div>
+          )}
+          {activeSession ? (
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <h2 style={{ fontSize: 18, margin: 0 }}>{activeSession.title || activeSession.id}</h2>
+                <span style={{ fontSize: 12, color: '#8b949e' }}>{activeSession.status}</span>
+              </div>
+              {activeSession.messages.map((msg, i) => (
+                <div key={i} style={{ marginBottom: 8, padding: 12, background: '#161b22', borderRadius: 8, fontSize: 13, maxWidth: '100%', overflow: 'auto' }}>
+                  <div style={{ color: '#58a6ff', marginBottom: 4, fontWeight: 600 }}>{typeof msg.type === 'string' ? msg.type : 'message'}</div>
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflow: 'auto' }}>
+                    {JSON.stringify(msg, null, 2).slice(0, 2000)}
+                  </pre>
                 </div>
-              </div>
-            )}
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-3xl border border-ink-900/10 bg-panel/80 px-6 py-16 text-center shadow-soft backdrop-blur">
-                <div className="text-lg font-semibold text-ink-800">Ready for your next task</div>
-                <p className="mt-2 text-sm text-muted">Describe what you want aegis to do.</p>
-                <button
-                  className="mt-5 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white shadow-soft hover:bg-accent-hover transition-colors"
-                  onClick={handleNewSession}
-                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                >
-                  + New Task
-                </button>
-              </div>
-            ) : (
-              <div className="message-stack">
-                {messages.map((msg, idx) => (
-                  <div key={idx} className="message-card">
-                    <MessageCard
-                      message={msg}
-                      isLast={idx === messages.length - 1}
-                      isRunning={isRunning}
-                      permissionRequest={permissionRequests[0]}
-                      onPermissionResult={handlePermissionResult}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="partial-message mt-6">
-              <MDContent text={partialMessage} />
-              {showPartialMessage && (
-                <div className="mt-3 flex flex-col gap-2 px-1">
-                  <div className="relative h-3 w-2/12 overflow-hidden rounded-full bg-ink-900/10">
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-ink-900/30 to-transparent animate-shimmer" />
-                  </div>
-                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-ink-900/10">
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-ink-900/30 to-transparent animate-shimmer" />
-                  </div>
-                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-ink-900/10">
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-ink-900/30 to-transparent animate-shimmer" />
-                  </div>
-                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-ink-900/10">
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-ink-900/30 to-transparent animate-shimmer" />
-                  </div>
-                  <div className="relative h-3 w-4/12 overflow-hidden rounded-full bg-ink-900/10">
-                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-ink-900/30 to-transparent animate-shimmer" />
-                  </div>
-                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', marginTop: 100 }}>
+              <h1 style={{ fontSize: 28, marginBottom: 8 }}>Aegis Desktop</h1>
+              <p style={{ color: '#8b949e', marginBottom: 4 }}>{connected ? '已连接后端' : '未连接'} | {Object.keys(sessions).length} 个会话</p>
+              <p style={{ color: '#8b949e', fontSize: 13 }}>
+                API Key: {providerConfigs.deepseek.apiKey ? '已配置' : '未配置'}
+              </p>
+              {!providerConfigs.deepseek.apiKey && (
+                <p style={{ color: '#f85149', fontSize: 12, marginTop: 8 }}>请在侧边栏设置中配置 API Key，或创建 ~/.aegis/config.toml</p>
               )}
             </div>
-
-            <div ref={messagesEndRef} />
-          </div>
+          )}
         </div>
 
-        <PromptInput sendEvent={sendEvent} connected={connected} />
-      </main>
+        {activeSession && (
+          <div style={{ borderTop: '1px solid #21262d', padding: 12 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={prompt} onChange={e => setPrompt(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleContinue(); } }}
+                placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
+                style={{ flex: 1, padding: '10px 14px', background: '#161b22', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none' }} />
+              <button onClick={handleContinue}
+                style={{ padding: '10px 20px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                发送
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {showStartModal && (
-        <StartSessionModal
-          cwd={cwd}
-          prompt={prompt}
-          pendingStart={pendingStart}
-          onCwdChange={setCwd}
-          onPromptChange={setPrompt}
-          onStart={handleStartFromModal}
-          onClose={() => setShowStartModal(false)}
-        />
-      )}
-
-      {globalError && (
-        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-error/20 bg-error-light px-4 py-3 shadow-lg">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-error">{globalError}</span>
-            <button className="text-error hover:text-error/80" onClick={() => setGlobalError(null)}>
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
+      {showNewModal && (
+        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', zIndex: 50 }}
+          onClick={() => setShowNewModal(false)}>
+          <div style={{ background: '#161b22', borderRadius: 12, padding: 24, width: 480, maxHeight: '80vh', overflow: 'auto' }}
+            onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: 18, marginBottom: 16, marginTop: 0 }}>新建会话</h2>
+            <div style={{ marginBottom: 12, fontSize: 12, color: '#8b949e' }}>
+              API Key: {providerConfigs.deepseek.apiKey ? '已配置 (' + providerConfigs.deepseek.model + ')' : '未配置'}
+            </div>
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>工作目录</div>
+              <input value={cwd} onChange={e => setCwd(e.target.value)} placeholder="留空使用当前目录"
+                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+            </label>
+            <label style={{ display: 'block', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>提示词</div>
+              <textarea rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="描述你想让 Agent 处理的任务..."
+                style={{ width: '100%', padding: '8px 12px', background: '#0d1117', border: '1px solid #30363d', borderRadius: 8, color: '#c9d1d9', fontSize: 14, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+            </label>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowNewModal(false)}
+                style={{ padding: '8px 16px', background: '#21262d', border: 'none', borderRadius: 8, color: '#c9d1d9', cursor: 'pointer' }}>取消</button>
+              <button onClick={handleNewSession} disabled={!prompt.trim()}
+                style={{ padding: '8px 16px', background: '#20b380', border: 'none', borderRadius: 8, color: '#fff', cursor: prompt.trim() ? 'pointer' : 'not-allowed', opacity: prompt.trim() ? 1 : 0.5 }}>开始会话</button>
+            </div>
           </div>
         </div>
       )}
