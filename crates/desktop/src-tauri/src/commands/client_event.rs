@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use aegis_core::agent::system_prompt::SystemPromptBuilder;
 use aegis_core::agent::AgentLoop;
@@ -11,6 +11,25 @@ use aegis_core::types::config::AgentConfig;
 
 use crate::events::{ClientEvent, ServerEvent, SessionStatus};
 use crate::state::SessionState;
+
+/// Auto-read API key from CLI config or env var
+fn read_api_key() -> (String, String) {
+    let config_path = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".aegis")
+        .join("config.toml");
+    if let Ok(content) = std::fs::read_to_string(&config_path) {
+        if let Ok(config) = toml::from_str::<toml::Table>(&content) {
+            let key = config.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let model = config.get("model").and_then(|v| v.as_str()).unwrap_or("deepseek-v4-pro").to_string();
+            if !key.is_empty() { return (key, model); }
+        }
+    }
+    (std::env::var("DEEPSEEK_API_KEY").unwrap_or_default(),
+     std::env::var("DEEPSEEK_MODEL").unwrap_or_else(|_| "deepseek-v4-pro".into()))
+}
+
+// ── Tauri event helpers ───────────────────────────────────────────
 
 fn emit(app: &AppHandle, event: ServerEvent) -> Result<(), String> {
     app.emit("server-event", &event).map_err(|e| e.to_string())
@@ -68,9 +87,10 @@ pub async fn client_event(
             emit(&app, ServerEvent::SessionList { sessions })
         }
         ClientEvent::SessionStart { title, prompt, cwd, provider: _, api_key, model, .. } => {
-            let api_key = api_key.trim().to_string();
-            let model = model.trim().to_string();
-            if api_key.is_empty() || model.is_empty() {
+            let mut api_key = api_key.trim().to_string();
+            let mut model = model.trim().to_string();
+            if api_key.is_empty() { (api_key, model) = read_api_key(); }
+            if api_key.is_empty() {
                 return emit(&app, ServerEvent::RunnerError {
                     session_id: None,
                     message: "API Key 或 Model 不能为空".into(),

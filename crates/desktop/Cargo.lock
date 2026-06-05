@@ -40,6 +40,7 @@ dependencies = [
  "aegis-tools",
  "async-trait",
  "chrono",
+ "dirs",
  "futures-util",
  "log",
  "reqwest 0.12.28",
@@ -50,6 +51,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-log",
  "tokio",
+ "toml 0.8.2",
  "uuid",
 ]
 
