@@ -501,7 +501,9 @@ Report findings honestly. If anything fails, return to Generator phase.\n\
 mod tests {
     use super::*;
 
-    #[test] fn s1_identity() {
+    
+
+#[test] fn s1_identity() {
         let s = build_section_1_identity(&AgentConfig::default());
         assert!(s.contains("Aegis")); assert!(s.contains("file_read"));
         assert!(s.contains("get_architectural_context")); assert!(s.contains("web_search"));
