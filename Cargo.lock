@@ -166,6 +166,7 @@ dependencies = [
  "aegis-core",
  "async-trait",
  "globset",
+ "libc",
  "regex",
  "reqwest 0.12.28",
  "serde",

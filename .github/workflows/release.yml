@@ -80,33 +80,36 @@ jobs:
           files: aegis-linux-x86_64.tar.gz
           generate_release_notes: true
 
-  # ── macOS (universal: aarch64 only, x86_64 via Rosetta) ─────────
+  # ── macOS (aarch64 + x86_64) ─────────────────────────────────────
   macos:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: aarch64-apple-darwin
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
 
-      - name: Build (aarch64)
-        run: cargo build --release --bin aegis --bin aegis-diag
+      - name: Build
+        run: cargo build --release --bin aegis --bin aegis-diag --target ${{ matrix.target }}
 
       - name: Package (tar.gz)
         run: |
           mkdir -p release
-          cp target/release/aegis release/
-          cp target/release/aegis-diag release/
+          cp target/${{ matrix.target }}/release/aegis release/
+          cp target/${{ matrix.target }}/release/aegis-diag release/
           cp README.md LICENSE release/ 2>/dev/null || true
-          cd release && tar czf ../aegis-macos-aarch64.tar.gz *
+          cd release && tar czf ../aegis-macos-${{ matrix.target }}.tar.gz *
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: aegis-macos-aarch64.tar.gz
+          files: aegis-macos-${{ matrix.target }}.tar.gz
           generate_release_notes: true

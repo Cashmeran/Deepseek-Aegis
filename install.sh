@@ -10,7 +10,12 @@ ARCH=$(uname -m)
 
 case "$OS" in
   Linux)  PLATFORM="linux-x86_64" ;;
-  Darwin) PLATFORM="macos-$(uname -m)" ;;
+  Darwin)
+    case "$ARCH" in
+      arm64)  PLATFORM="macos-aarch64-apple-darwin" ;;
+      x86_64) PLATFORM="macos-x86_64-apple-darwin" ;;
+      *)      echo "Unsupported Mac architecture: $ARCH"; exit 1 ;;
+    esac ;;
   MINGW*|MSYS*) PLATFORM="windows-x86_64" ;;
   *)
     echo "Unsupported OS: $OS"
