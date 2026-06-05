@@ -88,6 +88,8 @@ pub struct AgentLoop<L: LlmClient> {
     planner_turns: u32,
     /// Tool progress streaming callback (set per-turn by run_streaming)
     tool_progress_tx: Option<Arc<dyn Fn(String) + Send + Sync>>,
+    /// Whether the current-date SystemMessage has been injected
+    date_injected: bool,
 }
 
 impl<L: LlmClient> AgentLoop<L> {
@@ -126,6 +128,7 @@ impl<L: LlmClient> AgentLoop<L> {
             self_rescue_rounds: 0,
             planner_turns: 0,
             tool_progress_tx: None,
+            date_injected: false,
         }
     }
 
@@ -331,6 +334,14 @@ impl<L: LlmClient> AgentLoop<L> {
             content: user_input.to_string(),
             metadata: Default::default(),
         }));
+        // Inject current date as SystemMessage on first turn (not in system prompt — CC pattern)
+        if !self.date_injected {
+            let today = chrono::Utc::now().format("%Y-%m-%d");
+            self.conversation.add_message(Message::System(SystemMessage {
+                content: format!("<system-reminder> Current date: {today}. This is a hard fact. Never run date/time commands.</system-reminder>"),
+            }));
+            self.date_injected = true;
+        }
         // 注入记忆作为 SystemMessage（不在 system prompt 中，保护缓存）
         self.inject_memory_message(user_input);
         self.already_folded_this_turn = false;
@@ -617,6 +628,14 @@ impl<L: LlmClient> AgentLoop<L> {
         let session_id = self.conversation.started_at().to_rfc3339();
         tracing::info!(session_id, user_input = %user_input, "agent.run.start");
 
+        // Inject date on first turn
+        if !self.date_injected {
+            let today = chrono::Utc::now().format("%Y-%m-%d");
+            self.conversation.add_message(Message::System(SystemMessage {
+                content: format!("<system-reminder> Current date: {today}. This is a hard fact. Never run date/time commands.</system-reminder>"),
+            }));
+            self.date_injected = true;
+        }
         // 回合开始: 注入用户消息
         self.conversation.add_message(Message::User(UserMessage {
             id: format!("msg_{}", uuid::Uuid::new_v4()),
