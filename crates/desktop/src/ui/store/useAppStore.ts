@@ -10,16 +10,7 @@ const DEFAULT_PROVIDER_CONFIGS: ProviderConfigs = {
     model: "deepseek-v4-pro",
     baseUrl: ""
   },
-  anthropic: {
-    apiKey: "",
-    model: "claude-sonnet-4-5-20250929",
-    baseUrl: ""
-  },
-  openai: {
-    apiKey: "",
-    model: "gpt-4o-mini",
-    baseUrl: ""
-  }
+
 };
 
 const loadProviderConfigs = (): ProviderConfigs => {
@@ -30,8 +21,7 @@ const loadProviderConfigs = (): ProviderConfigs => {
     const parsed = JSON.parse(raw) as Partial<ProviderConfigs>;
     return {
       deepseek: { ...DEFAULT_PROVIDER_CONFIGS.deepseek, ...parsed.deepseek },
-      anthropic: { ...DEFAULT_PROVIDER_CONFIGS.anthropic, ...parsed.anthropic },
-      openai: { ...DEFAULT_PROVIDER_CONFIGS.openai, ...parsed.openai }
+
     };
   } catch {
     return DEFAULT_PROVIDER_CONFIGS;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
+import type { PermissionResult } from "../types";
 import type { PermissionRequest } from "../store/useAppStore";
 
 type AskUserQuestionInput = {

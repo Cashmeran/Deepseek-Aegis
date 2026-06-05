@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type {
-  PermissionResult,
-  SDKAssistantMessage,
-  SDKMessage,
-  SDKResultMessage,
-  SDKUserMessage
-} from "@anthropic-ai/claude-agent-sdk";
-import type { StreamMessage } from "../types";
+import type { PermissionResult } from "../types";
 import type { PermissionRequest } from "../store/useAppStore";
+
+type SDKMessage = Record<string, unknown> & { type?: string };
+type SDKAssistantMessage = SDKMessage & { message?: { content?: Array<{ type: string; text?: string }> } };
+type SDKResultMessage = SDKMessage & { result?: string; is_error?: boolean };
+type SDKUserMessage = SDKMessage & { message?: { role: string; content?: string | Array<{ type: string; text?: string }> } };
 import MDContent from "../render/markdown";
 import { DecisionPanel } from "./DecisionPanel";
 
