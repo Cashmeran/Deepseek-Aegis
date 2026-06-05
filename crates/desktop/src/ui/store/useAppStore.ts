@@ -100,6 +100,7 @@ interface AppState {
   markHistoryRequested: (sessionId: string) => void;
   resolvePermissionRequest: (sessionId: string, toolUseId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
+  initConfig: () => Promise<void>;
 }
 
 function createSession(id: string): SessionView {
@@ -323,5 +324,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
     }
-  }
+  },
+
+  initConfig: async () => {
+    try {
+      if (!window.__TAURI__?.core?.invoke) return;
+      const config = await window.__TAURI__.core.invoke<{ apiKey: string; model: string }>("get_config");
+      if (config?.apiKey) {
+        const state = get();
+        const current = state.providerConfigs.deepseek;
+        set({
+          providerConfigs: {
+            ...state.providerConfigs,
+            deepseek: {
+              apiKey: current.apiKey || config.apiKey,
+              model: current.model || config.model,
+              baseUrl: current.baseUrl,
+            },
+          },
+        });
+      }
+    } catch {
+      // Config not available — user can enter key manually
+    }
+  },
 }));

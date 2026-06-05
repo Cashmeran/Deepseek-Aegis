@@ -20,6 +20,9 @@ function App() {
   const [showPartialMessage, setShowPartialMessage] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  const initConfig = useAppStore((s) => s.initConfig);
+  useEffect(() => { initConfig(); }, []);
+
   const sessions = useAppStore((s) => s.sessions);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const showStartModal = useAppStore((s) => s.showStartModal);
