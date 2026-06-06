@@ -77,6 +77,9 @@ interface AppState {
   activeProvider: ProviderKind;
   providerConfigs: ProviderConfigs;
   permissionMode: PermissionMode;
+  projectMeta: ProjectMeta | null;
+  scanResult: ScanResult | null;
+  projectRules: RuleFile[];
 
   setPrompt: (prompt: string) => void;
   setCwd: (cwd: string) => void;
@@ -91,10 +94,72 @@ interface AppState {
   resolvePermissionRequest: (sessionId: string, toolUseId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
   initConfig: () => Promise<void>;
+  initProject: (cwd: string) => Promise<ProjectMeta | null>;
+  openProject: (cwd: string) => Promise<ProjectMeta | null>;
+  scanProject: (cwd: string) => Promise<ScanResult | null>;
+  loadProjectRules: (cwd: string) => Promise<RuleFile[]>;
+  saveProjectRule: (cwd: string, name: string, content: string) => Promise<void>;
+  checkProject: (cwd: string) => Promise<boolean>;
+  loadProjectSessions: (cwd: string) => Promise<void>;
 }
 
 function createSession(id: string): SessionView {
   return { id, title: "", status: "idle", messages: [], permissionRequests: [], hydrated: false };
+}
+
+// ── rAF-based stream accumulation: smooth 60fps rendering, no setTimeout races ──
+// Each sessionId+type has its own accumulator. On first token, schedules an rAF
+// flush. All tokens arriving within the same frame are batched into one state update.
+// rAF naturally syncs with browser paint — no timer drift, no drop-on-done bugs.
+type StreamSlot = { text: string; type: string; rAFId: number | null };
+const streamSlots: Record<string, StreamSlot> = {};
+
+function slotKey(sessionId: string, type: string): string {
+  return `${sessionId}\0${type}`; // \0 can't appear in UUIDs, safe delimiter
+}
+
+function streamFlush(key: string) {
+  const slot = streamSlots[key];
+  if (!slot || !slot.text) return;
+  const accumulated = slot.text;
+  const type = slot.type;
+  const sessionId = key.slice(0, key.indexOf("\0"));
+  slot.text = "";
+  slot.rAFId = null;
+  useAppStore.setState((state) => {
+    const s = state.sessions[sessionId] ?? createSession(sessionId);
+    const msgs = [...s.messages];
+    const last = msgs[msgs.length - 1];
+    if (last && last.type === type) {
+      msgs[msgs.length - 1] = { ...last, text: (last.text || "") + accumulated };
+    } else {
+      msgs.push({ type, text: accumulated } as StreamMessage);
+    }
+    return { sessions: { ...state.sessions, [sessionId]: { ...s, messages: msgs, status: "running" } } };
+  });
+}
+
+function streamPush(sessionId: string, text: string, type: string) {
+  const key = slotKey(sessionId, type);
+  if (!streamSlots[key]) {
+    streamSlots[key] = { text: "", type, rAFId: null };
+  }
+  const slot = streamSlots[key];
+  slot.text += text;
+  if (slot.rAFId === null) {
+    slot.rAFId = requestAnimationFrame(() => streamFlush(key));
+  }
+}
+
+function streamFlushAll() {
+  for (const key of Object.keys(streamSlots)) {
+    const slot = streamSlots[key];
+    if (slot?.rAFId !== null) {
+      cancelAnimationFrame(slot.rAFId!);
+      slot.rAFId = null;
+    }
+    streamFlush(key);
+  }
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -110,6 +175,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeProvider: "deepseek",
   providerConfigs: loadProviderConfigs(),
   permissionMode: loadPermissionMode(),
+  projectMeta: null,
+  scanResult: null,
+  projectRules: [],
 
   setPrompt: (prompt) => set({ prompt }),
   setCwd: (cwd) => set({ cwd }),
@@ -217,6 +285,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "session.status": {
+        if (event.payload.status === "completed" || event.payload.status === "idle") {
+          streamFlushAll();
+        }
         const { sessionId, status, title, cwd } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
@@ -261,35 +332,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "stream.delta": {
-        const { sessionId, text } = event.payload;
-        set((state) => {
-          const existing = state.sessions[sessionId] ?? createSession(sessionId);
-          const msgs = [...existing.messages];
-          const last = msgs[msgs.length - 1];
-          // Append to last assistant message if it exists
-          if (last && last.type === "assistant") {
-            msgs[msgs.length - 1] = { ...last, text: (last.text || "") + text };
-          } else {
-            msgs.push({ type: "assistant", text });
-          }
-          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs, status: "running" } } };
-        });
+        streamPush(event.payload.sessionId, event.payload.text, "assistant");
         break;
       }
 
       case "stream.thinking": {
-        const { sessionId, text } = event.payload;
-        set((state) => {
-          const existing = state.sessions[sessionId] ?? createSession(sessionId);
-          const msgs = [...existing.messages];
-          const last = msgs[msgs.length - 1];
-          if (last && last.type === "thinking") {
-            msgs[msgs.length - 1] = { ...last, text: (last.text || "") + text };
-          } else {
-            msgs.push({ type: "thinking", text });
-          }
-          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs } } };
-        });
+        streamPush(event.payload.sessionId, event.payload.text, "thinking");
         break;
       }
 
@@ -298,6 +346,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
           return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: [...existing.messages, { type: "tool_use", id, name, input, status: "pending" }] } } };
+        });
+        break;
+      }
+
+      case "stream.tool_progress": {
+        const { sessionId, line } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          const msgs = [...existing.messages];
+          const last = msgs[msgs.length - 1];
+          // Append progress lines to last tool_use output
+          if (last && last.type === "tool_use" && last.status === "pending") {
+            msgs[msgs.length - 1] = { ...last, output: (last.output || "") + line + "\n" };
+          }
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: msgs } } };
         });
         break;
       }
@@ -318,10 +381,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "stream.done": {
-        const { sessionId, input_tokens, output_tokens, cost } = event.payload;
+        streamFlushAll();
+        const { sessionId, input_tokens, output_tokens, cache_read_tokens, cost } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
-          return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: [...existing.messages, { type: "usage", input_tokens, output_tokens, cost }] } } };
+          const updatedMessages = [...existing.messages, { type: "usage", input_tokens, output_tokens, cache_read_tokens, cost } as StreamMessage];
+          // Persist complete messages to disk (includes thinking, tool_use, tool_result etc.)
+          const cwd = existing.cwd;
+          if (cwd) {
+            window.__TAURI__?.core?.invoke("save_session_messages", {
+              cwd,
+              sessionId,
+              messages: updatedMessages,
+            }).catch(() => {});
+          }
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: updatedMessages } } };
         });
         break;
       }
@@ -352,6 +426,25 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
 
+      case "stream.message": {
+        const { sessionId, message } = event.payload;
+        if (message.type === "stream_event") break; // ignore raw stream events in history
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: [...existing.messages, message] } } };
+        });
+        break;
+      }
+
+      case "ask_user": {
+        const { sessionId, question, header, options } = event.payload;
+        set((state) => {
+          const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, messages: [...existing.messages, { type: "ask_user", question, header, options }] } } };
+        });
+        break;
+      }
+
       case "runner.error": {
         set({ globalError: event.payload.message });
         break;
@@ -362,6 +455,37 @@ export const useAppStore = create<AppState>((set, get) => ({
   initConfig: async () => {
     try {
       if (!window.__TAURI__?.core?.invoke) return;
+
+      // Load project index from disk (~/.aegis/projects.json)
+      try {
+        const projects = await window.__TAURI__.core.invoke<ProjectEntry[]>("load_projects");
+        if (projects?.length) {
+          // Restore each project as a session in the sidebar
+          for (const p of projects) {
+            const sessions = useAppStore.getState().sessions;
+            if (!sessions[p.path]) {
+              useAppStore.setState({
+                sessions: {
+                  ...sessions,
+                  [p.path]: {
+                    id: p.path,
+                    title: p.name || p.path.split(/[\\/]/).pop() || p.path,
+                    status: "completed" as SessionStatus,
+                    cwd: p.path,
+                    messages: [],
+                    permissionRequests: [],
+                    hydrated: false,
+                    lastPrompt: undefined,
+                    createdAt: p.lastOpened,
+                    updatedAt: p.lastOpened,
+                  },
+                },
+              });
+            }
+          }
+        }
+      } catch { /* no projects yet */ }
+
       const config = await window.__TAURI__.core.invoke<{ apiKey: string; model: string }>("get_config");
       if (config?.apiKey) {
         const state = get();
@@ -381,4 +505,144 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Config not available — user can enter key manually
     }
   },
+
+  // ── Project API (calls Rust backend project.rs) ──
+
+  initProject: async (cwd: string) => {
+    try {
+      const meta = await window.__TAURI__?.core?.invoke<ProjectMeta>("project_init", { cwd });
+      if (meta) {
+        set({ projectMeta: meta });
+        return meta;
+      }
+    } catch (e) {
+      set({ globalError: `项目初始化失败: ${e}` });
+    }
+    return null;
+  },
+
+  openProject: async (cwd: string) => {
+    try {
+      const meta = await window.__TAURI__?.core?.invoke<ProjectMeta>("project_open", { cwd });
+      if (meta) {
+        set({ projectMeta: meta });
+        return meta;
+      }
+    } catch {
+      // No .aegis/ directory — use global mode
+      set({ projectMeta: null });
+    }
+    return null;
+  },
+
+  scanProject: async (cwd: string) => {
+    try {
+      const result = await window.__TAURI__?.core?.invoke<ScanResult>("project_scan", { cwd });
+      if (result) {
+        set({ scanResult: result });
+        return result;
+      }
+    } catch (e) {
+      console.error("scanProject failed:", e);
+    }
+    return null;
+  },
+
+  loadProjectRules: async (cwd: string) => {
+    try {
+      const rules = await window.__TAURI__?.core?.invoke<RuleFile[]>("project_list_rules", { cwd });
+      if (rules) {
+        set({ projectRules: rules });
+        return rules;
+      }
+    } catch {
+      set({ projectRules: [] });
+    }
+    return [];
+  },
+
+  saveProjectRule: async (cwd: string, name: string, content: string) => {
+    try {
+      await window.__TAURI__?.core?.invoke("project_save_rule", { cwd, name, content });
+      const state = get();
+      await state.loadProjectRules(cwd);
+    } catch (e) {
+      console.error("saveProjectRule failed:", e);
+    }
+  },
+
+  checkProject: async (cwd: string) => {
+    try {
+      return await window.__TAURI__?.core?.invoke<boolean>("project_check", { cwd });
+    } catch {
+      return false;
+    }
+  },
+
+  loadProjectSessions: async (cwd: string) => {
+    try {
+      const entries = await window.__TAURI__?.core?.invoke<{ session_id: string; completed_at: string; turn_count: number }[]>("load_project_sessions", { cwd });
+      if (!entries?.length) return;
+      const state = get();
+      const existing = state.sessions[cwd] ?? { id: cwd, title: cwd.split(/[\\/]/).pop() || cwd, status: "completed" as SessionStatus, cwd, messages: [], permissionRequests: [], hydrated: false };
+
+      // Load the most recent session's full message history
+      const latest = entries[entries.length - 1];
+      let messages: StreamMessage[] = [];
+      try {
+        const sessionData = await window.__TAURI__?.core?.invoke<{ messages: StreamMessage[] }>("read_session_file", { cwd, sessionId: latest.session_id });
+        if (sessionData?.messages) {
+          messages = sessionData.messages;
+        }
+      } catch { /* session file may not exist */ }
+
+      set({
+        sessions: {
+          ...state.sessions,
+          [cwd]: {
+            ...existing,
+            hydrated: true,
+            updatedAt: Date.now(),
+            messages: messages.length > 0 ? messages : existing.messages,
+          },
+        },
+      });
+    } catch { /* no sessions */ }
+  },
 }));
+
+// Project types (mirrors Rust project.rs)
+export type ProjectMeta = {
+  name: string;
+  root: string;
+  language?: string;
+  file_count: number;
+  has_aegis_dir: boolean;
+  created_at: number;
+};
+
+export type ScanResult = {
+  total_files: number;
+  total_functions: number;
+  total_modules: number;
+  languages: LanguageCount[];
+  duration_ms: number;
+};
+
+export type LanguageCount = {
+  name: string;
+  files: number;
+  functions: number;
+};
+
+export type RuleFile = {
+  name: string;
+  content: string;
+};
+
+type ProjectEntry = {
+  path: string;
+  name: string;
+  lastOpened: number;
+  sessionCount: number;
+};

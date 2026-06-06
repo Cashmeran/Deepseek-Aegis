@@ -1,8 +1,8 @@
 use super::*;
 use crate::app::config::{ConfigOverlayState, OutputStyle, OutputStyleOverlayState};
-use crate::app::dialog::DialogState;
+use crate::app::interaction::dialog::DialogState;
 use crate::app::slash::{SlashContext, SlashState};
-use crate::app::subagent::SubagentState;
+use crate::app::tools::subagent::SubagentState;
 use crate::app::{
     FocusTarget, FullscreenView, PasteSessionState, ReleaseReason, SelectionPoint, SurfaceMode,
     TerminalLifecycleState,

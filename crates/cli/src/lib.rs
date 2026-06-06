@@ -1,7 +1,6 @@
 // aegis-cli — terminal UI and app layer
 
-pub mod aegis_bridge;
-pub mod agent;
+pub mod bridge;
 pub mod app;
 pub mod error;
 pub mod logging;

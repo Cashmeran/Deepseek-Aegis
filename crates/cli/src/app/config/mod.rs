@@ -9,9 +9,9 @@ mod resolve;
 pub mod store;
 
 use super::view::{self, FullscreenView, SurfaceMode};
-use crate::agent::model::EffortLevel;
+use crate::bridge::model::EffortLevel;
 use crate::app::App;
-use crate::app::dialog::DialogState;
+use crate::app::interaction::dialog::DialogState;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::PathBuf;
 

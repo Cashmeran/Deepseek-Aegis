@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::block_cache::BlockCache;
-use crate::agent::model;
+use crate::bridge::model;
 
 pub struct ToolCallInfo {
     pub id: String,

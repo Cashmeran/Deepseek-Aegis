@@ -1,17 +1,15 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-pub(crate) mod auth;
+mod auth;
 mod cache_policy;
-pub(crate) mod clipboard_image;
 pub(crate) mod config;
 mod connect;
-mod dialog;
 mod events;
 pub(crate) mod file_index;
 mod focus;
 mod git_context;
-mod inline_interactions;
+mod interaction;
 pub(crate) mod input;
 mod input_submit;
 pub mod keymap;
@@ -20,21 +18,15 @@ mod lifecycle;
 pub(crate) mod mention;
 mod notify;
 pub(crate) mod paste_burst;
-mod permissions;
 pub(crate) mod plugins;
-mod questions;
-mod service_status_check;
-pub(crate) mod session_picker;
-mod session_runtime;
+pub(crate) mod session;
 pub(crate) mod slash;
 mod state;
-pub(crate) mod subagent;
 mod tab_title;
 mod terminal;
 pub(crate) mod terminal_runtime;
-pub(crate) mod todos;
-mod trust;
-mod update_check;
+pub(crate) mod tools;
+mod updates;
 pub(crate) mod usage;
 mod view;
 
@@ -55,7 +47,7 @@ pub use lifecycle::{
     ChatRebuildKind, ChatSurfaceDirtyState, FullscreenSurfaceDirtyState, ReleaseReason,
     SurfaceDirtyState, TerminalLifecycleState,
 };
-pub use service_status_check::start_service_status_check;
+pub use updates::service_status::start_service_status_check;
 pub(crate) use state::MarkdownRenderKey;
 pub use state::{
     App, AppStatus, AutocompleteKind, BlockCache, CacheMetrics, CancelOrigin, ChatMessage,
@@ -70,12 +62,12 @@ pub use state::{
     UsageSnapshot, UsageSourceKind, UsageSourceMode, UsageState, UsageWindow, WelcomeBlock,
     hash_text_block_content, hash_welcome_block_content, is_execute_tool_name,
 };
-pub use trust::TrustSelection;
-pub use update_check::start_update_check;
+pub use auth::trust::TrustSelection;
+pub use updates::check::start_update_check;
 pub use view::{FullscreenView, SurfaceMode};
 
-use crate::agent::events::ClientEvent;
-use crate::agent::model;
+use crate::bridge::events::ClientEvent;
+use crate::bridge::model;
 use anyhow::Context as _;
 use crossterm::event::EventStream;
 use futures::{FutureExt as _, StreamExt};
@@ -180,7 +172,7 @@ async fn run_tui_loop(
         }
 
         app.tick_git_context(now);
-        session_runtime::tick_context_usage_refresh(app, now);
+        session::runtime::tick_context_usage_refresh(app, now);
         // Deferred submit: if Enter was pressed and no paste payload arrived
         // in this drain cycle, restore the exact pre-submit snapshot and
         // submit that unchanged draft.
@@ -308,7 +300,7 @@ fn handle_runtime_client_event(
     events::handle_client_event(app, event);
     if start_service_status_check {
         *service_status_check_started = true;
-        service_status_check::start_service_status_check(app);
+        updates::service_status::start_service_status_check(app);
     }
 }
 
@@ -557,16 +549,16 @@ fn finalize_deferred_submit(app: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::model;
-    use crate::agent::wire::BridgeCommand;
+    use crate::bridge::model;
+    use crate::bridge::wire::BridgeCommand;
     use crate::app::{MessageBlock, MessageRole};
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
     fn app_with_connection()
-    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::agent::wire::CommandEnvelope>) {
+    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::wire::CommandEnvelope>) {
         let mut app = App::test_default();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         app.session_id = Some(model::SessionId::new("session-1"));
         (app, rx)
     }

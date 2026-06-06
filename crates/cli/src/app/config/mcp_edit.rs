@@ -93,7 +93,7 @@ fn execute_selected_mcp_overlay_action(app: &mut App) {
 
     match action {
         McpServerActionKind::RefreshSnapshot => {
-            crate::app::session_runtime::request_runtime_reload(app);
+            crate::app::session::runtime::request_runtime_reload(app);
             refresh_mcp_snapshot(app);
         }
         McpServerActionKind::Authenticate => {
@@ -190,7 +190,7 @@ fn cancel_mcp_elicitation_overlay(app: &mut App) {
     send_mcp_elicitation_response(
         app,
         &request_id,
-        crate::agent::types::ElicitationAction::Cancel,
+        crate::bridge::types::ElicitationAction::Cancel,
         None,
     );
     app.config.overlay = None;
@@ -238,7 +238,7 @@ fn execute_mcp_auth_redirect_overlay_action(app: &mut App) {
     };
     match action {
         McpAuthRedirectAction::Refresh => {
-            crate::app::session_runtime::request_runtime_reload(app);
+            crate::app::session::runtime::request_runtime_reload(app);
             refresh_mcp_snapshot(app);
             app.config.overlay = None;
         }
@@ -287,17 +287,17 @@ fn execute_mcp_elicitation_overlay_action(app: &mut App) {
 }
 
 fn mcp_elicitation_actions(
-    request: &crate::agent::types::ElicitationRequest,
-) -> Vec<crate::agent::types::ElicitationAction> {
+    request: &crate::bridge::types::ElicitationRequest,
+) -> Vec<crate::bridge::types::ElicitationAction> {
     match request.mode {
-        crate::agent::types::ElicitationMode::Url => vec![
-            crate::agent::types::ElicitationAction::Accept,
-            crate::agent::types::ElicitationAction::Decline,
-            crate::agent::types::ElicitationAction::Cancel,
+        crate::bridge::types::ElicitationMode::Url => vec![
+            crate::bridge::types::ElicitationAction::Accept,
+            crate::bridge::types::ElicitationAction::Decline,
+            crate::bridge::types::ElicitationAction::Cancel,
         ],
-        crate::agent::types::ElicitationMode::Form => vec![
-            crate::agent::types::ElicitationAction::Decline,
-            crate::agent::types::ElicitationAction::Cancel,
+        crate::bridge::types::ElicitationMode::Form => vec![
+            crate::bridge::types::ElicitationAction::Decline,
+            crate::bridge::types::ElicitationAction::Cancel,
         ],
     }
 }

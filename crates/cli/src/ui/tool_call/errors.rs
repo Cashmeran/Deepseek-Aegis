@@ -3,11 +3,11 @@
 
 //! Error rendering and tool-use error extraction for failed tool calls.
 
-use crate::agent::error_handling::{
+use crate::bridge::error_handling::{
     looks_like_internal_error as shared_looks_like_internal_error,
     summarize_internal_error as shared_summarize_internal_error,
 };
-use crate::agent::model;
+use crate::bridge::model;
 use crate::app::ToolCallInfo;
 use crate::ui::theme;
 use ratatui::style::{Modifier, Style};

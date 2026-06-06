@@ -1,7 +1,7 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::agent::model;
+use crate::bridge::model;
 use crate::app::{
     App, AppStatus, ChatMessage, ChatMessageId, HistoryOutputId, MessageBlock, MessageRole,
     NoticeBlock, SystemSeverity, TextBlock, TextBlockSpacing, ToolCallInfo, WelcomeBlock,
@@ -1189,7 +1189,7 @@ mod tests {
         LiveRowBoundaryKind, SerializedLiveRows, serialize_live_rows_with_boundaries_excluding,
         thinking_line,
     };
-    use crate::agent::model;
+    use crate::bridge::model;
     use crate::app::{
         App, AppStatus, BlockCache, ChatMessage, HistoryOutputId, MessageBlock, MessageRole,
         NoticeBlock, TerminalSnapshotMode, TextBlock, TextBlockSpacing, ToolCallInfo,

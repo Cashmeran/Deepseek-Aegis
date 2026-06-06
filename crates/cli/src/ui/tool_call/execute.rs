@@ -3,7 +3,7 @@
 
 //! Content rendering for Execute/Bash tool calls.
 
-use crate::agent::model;
+use crate::bridge::model;
 use crate::app::ToolCallInfo;
 use crate::ui::highlight;
 use crate::ui::theme;

@@ -1,7 +1,7 @@
 mod cli;
 mod oauth;
 
-use crate::agent::events::ClientEvent;
+use crate::bridge::events::ClientEvent;
 use crate::app::{App, UsageSnapshot, UsageSourceKind, UsageSourceMode, UsageWindow};
 use std::time::{Duration, SystemTime};
 

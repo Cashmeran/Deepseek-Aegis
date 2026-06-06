@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::super::{App, ChatMessage, MessageBlock, MessageRole, TextBlock};
-use crate::agent::model;
+use crate::bridge::model;
 
 pub(super) fn reset_for_new_session(
     app: &mut App,
@@ -11,7 +11,7 @@ pub(super) fn reset_for_new_session(
     mode: Option<super::super::ModeState>,
     preserve_current_welcome_tip: bool,
 ) {
-    crate::agent::events::kill_all_terminals(&app.terminals);
+    crate::bridge::events::kill_all_terminals(&app.terminals);
 
     reset_session_identity_state(app, session_id, current_model, mode);
     reset_messages_for_new_session(app, preserve_current_welcome_tip);
@@ -165,7 +165,7 @@ pub(super) fn load_resume_history(app: &mut App, history_updates: &[model::Sessi
 #[cfg(test)]
 mod tests {
     use super::reset_for_new_session;
-    use crate::agent::model;
+    use crate::bridge::model;
     use crate::app::{App, ChatMessage};
 
     #[test]

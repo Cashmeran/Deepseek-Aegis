@@ -3,8 +3,8 @@
 
 //! Rendering for tool-call titles, standard bodies, and compact content summaries.
 
-use crate::agent::model;
-use crate::app::todos::parse_todos_if_present;
+use crate::bridge::model;
+use crate::app::tools::todos::parse_todos_if_present;
 use crate::app::{TodoItem, TodoStatus, ToolCallInfo};
 use crate::ui::diff::{is_markdown_file, lang_from_title, render_diff, strip_outer_code_fence};
 use crate::ui::highlight;

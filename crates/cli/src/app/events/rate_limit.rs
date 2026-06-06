@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::super::{App, NoticeDedupKey, NoticeStage, RateLimitIncidentKey, SystemSeverity};
-use crate::agent::model;
+use crate::bridge::model;
 use std::time::Duration;
 
 const EXTRA_USAGE_REQUIRED_MESSAGE: &str = "Extra usage is required for 1M context. Use /extra-usage to enable it, /model to switch models, or /1m-context disable to turn off 1M context for this folder.";
@@ -186,7 +186,7 @@ pub(super) fn handle_compaction_boundary_update(
 #[cfg(test)]
 mod tests {
     use super::format_rate_limit_summary;
-    use crate::agent::model::{RateLimitStatus, RateLimitUpdate};
+    use crate::bridge::model::{RateLimitStatus, RateLimitUpdate};
 
     #[test]
     fn org_level_disabled_without_primary_context_uses_extra_usage_message() {

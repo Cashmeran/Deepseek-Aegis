@@ -1,5 +1,5 @@
 use super::{App, session, turn};
-use crate::agent::events::ClientEvent;
+use crate::bridge::events::ClientEvent;
 
 #[allow(clippy::too_many_lines)]
 pub fn handle_client_event(app: &mut App, event: ClientEvent) {
@@ -52,8 +52,8 @@ pub fn handle_client_event(app: &mut App, event: ClientEvent) {
                 &history_updates,
             );
             crate::app::config::refresh_mcp_snapshot(app);
-            crate::app::session_runtime::request_status_snapshot_refresh(app);
-            crate::app::session_runtime::request_context_usage_refresh(app);
+            crate::app::session::runtime::request_status_snapshot_refresh(app);
+            crate::app::session::runtime::request_context_usage_refresh(app);
         }
         ClientEvent::SessionsListed { sessions } => {
             session::handle_sessions_listed_event(app, sessions);
@@ -113,8 +113,8 @@ pub fn handle_client_event(app: &mut App, event: ClientEvent) {
                 &history_updates,
             );
             crate::app::config::refresh_mcp_snapshot(app);
-            crate::app::session_runtime::request_status_snapshot_refresh(app);
-            crate::app::session_runtime::request_context_usage_refresh(app);
+            crate::app::session::runtime::request_status_snapshot_refresh(app);
+            crate::app::session::runtime::request_context_usage_refresh(app);
         }
         ClientEvent::UpdateAvailable { latest_version, current_version } => {
             session::handle_update_available_event(app, &latest_version, &current_version);
@@ -179,7 +179,7 @@ pub fn handle_client_event(app: &mut App, event: ClientEvent) {
                 );
                 return;
             }
-            crate::app::session_runtime::apply_context_usage_snapshot(app, percentage);
+            crate::app::session::runtime::apply_context_usage_snapshot(app, percentage);
         }
         ClientEvent::McpSnapshotReceived { session_id, servers, error } => {
             if app.session_id.as_ref().map(ToString::to_string).as_deref()
@@ -208,13 +208,13 @@ pub fn handle_client_event(app: &mut App, event: ClientEvent) {
                     app.mcp.servers.iter().find(|server| server.name == server_name)
                     && !matches!(
                         server.status,
-                        crate::agent::types::McpServerConnectionStatus::NeedsAuth
-                            | crate::agent::types::McpServerConnectionStatus::Pending
+                        crate::bridge::types::McpServerConnectionStatus::NeedsAuth
+                            | crate::bridge::types::McpServerConnectionStatus::Pending
                     )
                 {
                     if matches!(
                         server.status,
-                        crate::agent::types::McpServerConnectionStatus::Connected
+                        crate::bridge::types::McpServerConnectionStatus::Connected
                     ) {
                         app.config.status_message =
                             Some(format!("{} authenticated successfully.", server.name));

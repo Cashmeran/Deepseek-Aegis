@@ -60,14 +60,14 @@ export type ClientEvent =
         title: string;
         prompt: string;
         cwd?: string;
-        allowedTools?: string;
         provider: ProviderKind;
         apiKey: string;
         model: string;
         baseUrl?: string;
+        executionMode?: string;
       };
     }
-  | { type: "session.continue"; payload: { sessionId: string; prompt: string } }
+  | { type: "session.continue"; payload: { sessionId: string; prompt: string; messages?: StreamMessage[] } }
   | { type: "session.stop"; payload: { sessionId: string } }
   | { type: "session.delete"; payload: { sessionId: string } }
   | { type: "session.list" }

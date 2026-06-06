@@ -20,6 +20,9 @@ pub struct SessionState {
   sessions: Mutex<HashMap<String, SessionInfo>>,
   messages: Mutex<HashMap<String, Vec<Value>>>,
   providers: Mutex<HashMap<String, ProviderSettings>>,
+  modes: Mutex<HashMap<String, String>>,
+  cwds: Mutex<HashMap<String, String>>,
+  agents: Mutex<HashMap<String, aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>>>,
   pending_permissions: Mutex<HashMap<String, oneshot::Sender<Value>>>,
 }
 
@@ -77,10 +80,56 @@ impl SessionState {
     self.providers.lock().expect("provider lock").get(id).cloned()
   }
 
+  pub fn store_mode(&self, id: &str, mode: &str) {
+    self.modes.lock().expect("mode lock").insert(id.to_string(), mode.to_string());
+  }
+
+  pub fn get_mode(&self, id: &str) -> Option<String> {
+    self.modes.lock().expect("mode lock").get(id).cloned()
+  }
+
+  pub fn store_cwd(&self, id: &str, cwd: &str) {
+    self.cwds.lock().expect("cwd lock").insert(id.to_string(), cwd.to_string());
+  }
+
+  pub fn get_cwd(&self, id: &str) -> Option<String> {
+    self.cwds.lock().expect("cwd lock").get(id).cloned()
+  }
+
+  pub fn restore_session(&self, info: SessionInfo) {
+    self.sessions.lock().expect("session lock").insert(info.id.clone(), info);
+  }
+
   pub fn remove_session(&self, id: &str) {
     self.sessions.lock().expect("session lock").remove(id);
     self.messages.lock().expect("message lock").remove(id);
     self.providers.lock().expect("provider lock").remove(id);
+    self.modes.lock().expect("mode lock").remove(id);
+    self.cwds.lock().expect("cwd lock").remove(id);
+  }
+
+  /// Set cancellation flag — run_agent_turn checks this between stream events
+  pub fn cancel_session(&self, id: &str) {
+    if let Ok(mut sessions) = self.sessions.lock() {
+      if let Some(s) = sessions.get_mut(id) {
+        s.status = SessionStatus::Completed;
+      }
+    }
+  }
+
+  /// Store a persistent AgentLoop for this session
+  pub fn store_agent(&self, id: &str, agent: aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>) {
+    self.agents.lock().expect("agent lock").insert(id.to_string(), agent);
+  }
+
+  /// Take the AgentLoop out (replaces with empty entry)
+  pub fn take_agent(&self, id: &str) -> Option<aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>> {
+    self.agents.lock().expect("agent lock").remove(id)
+  }
+
+  /// Put agent back after turn
+  pub fn put_agent(&self, id: &str, agent: aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>) {
+    self.agents.lock().expect("agent lock").insert(id.to_string(), agent);
   }
 
   pub fn list_recent_cwds(&self, limit: usize) -> Vec<String> {

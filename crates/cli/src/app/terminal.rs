@@ -78,8 +78,8 @@ pub(super) fn update_terminal_outputs(app: &mut App) -> bool {
         let tc = tc.as_mut();
         if !matches!(
             tc.status,
-            crate::agent::model::ToolCallStatus::Pending
-                | crate::agent::model::ToolCallStatus::InProgress
+            crate::bridge::model::ToolCallStatus::Pending
+                | crate::bridge::model::ToolCallStatus::InProgress
         ) {
             continue;
         }
@@ -147,8 +147,8 @@ pub(super) fn update_terminal_outputs(app: &mut App) -> bool {
 #[cfg(test)]
 mod tests {
     use super::update_terminal_outputs;
-    use crate::agent::events::TerminalProcess;
-    use crate::agent::model;
+    use crate::bridge::events::TerminalProcess;
+    use crate::bridge::model;
     use crate::app::{
         App, BlockCache, ChatMessage, MessageBlock, MessageRole, TerminalSnapshotMode, ToolCallInfo,
     };

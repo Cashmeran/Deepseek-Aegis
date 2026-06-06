@@ -16,7 +16,7 @@ mod standard;
 
 use std::borrow::Cow;
 
-use crate::agent::model;
+use crate::bridge::model;
 use crate::app::ToolCallInfo;
 use crate::ui::markdown;
 use crate::ui::theme;

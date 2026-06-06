@@ -3,7 +3,7 @@
 
 //! Inline interaction rendering: permissions, plan approvals, and `AskUserQuestion`.
 
-use crate::agent::model::PermissionOptionKind;
+use crate::bridge::model::PermissionOptionKind;
 use crate::app::{InlinePermission, InlineQuestion, ToolCallInfo};
 use crate::ui::theme;
 use ratatui::style::{Color, Modifier, Style};
@@ -393,7 +393,7 @@ pub(super) fn render_question_lines(question: &InlineQuestion) -> Vec<Line<'stat
 #[cfg(test)]
 mod tests {
     use super::{render_permission_lines, render_plan_approval_lines, render_question_lines};
-    use crate::agent::model::{
+    use crate::bridge::model::{
         PermissionDisplay, PermissionOption, PermissionOptionKind, QuestionOption, QuestionPrompt,
         ToolCallStatus,
     };

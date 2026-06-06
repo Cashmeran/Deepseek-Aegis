@@ -32,7 +32,7 @@ pub(super) fn handle_key(app: &mut App, key: KeyEvent) -> bool {
 fn set_section(app: &mut App, next: ConfigHelpSection) {
     if app.config.help_section != next {
         app.config.help_section = next;
-        app.config.help_dialog = crate::app::dialog::DialogState::default();
+        app.config.help_dialog = crate::app::interaction::dialog::DialogState::default();
         app.config.help_visible_count = 0;
     }
 }

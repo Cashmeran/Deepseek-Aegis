@@ -6,8 +6,8 @@ use super::super::{
     ToolCallInfo, ToolCallScope,
 };
 use super::tool_updates::raw_output_to_terminal_text;
-use crate::agent::model;
-use crate::app::todos::{parse_todos_if_present, set_todos};
+use crate::bridge::model;
+use crate::app::tools::todos::{parse_todos_if_present, set_todos};
 
 pub(super) fn handle_tool_call(app: &mut App, tc: model::ToolCall) {
     let id_str = tc.tool_call_id.clone();

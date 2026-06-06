@@ -7,7 +7,7 @@ use super::{
     SessionRenameOverlayState, SettingFile, SettingId, SettingOptions, SettingSpec,
     resolved_setting, setting_display_value, setting_spec, store,
 };
-use crate::agent::model::EffortLevel;
+use crate::bridge::model::EffortLevel;
 use crate::app::App;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::Value;

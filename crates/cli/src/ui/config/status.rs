@@ -148,7 +148,7 @@ fn model_display(app: &App) -> String {
     current_model.display_name_long.clone()
 }
 
-pub(crate) fn login_method_label(account: &crate::agent::types::AccountInfo) -> String {
+pub(crate) fn login_method_label(account: &crate::bridge::types::AccountInfo) -> String {
     if let Some(ref provider) = account.api_provider
         && !provider.trim().is_empty()
         && provider != "firstParty"
@@ -242,7 +242,7 @@ mod tests {
     fn status_lines_shows_model() {
         let mut app = App::test_default();
         app.current_model = Some(
-            crate::agent::model::CurrentModel::new("claude-sonnet-4-7", "Sonnet", "Sonnet 4.7")
+            crate::bridge::model::CurrentModel::new("claude-sonnet-4-7", "Sonnet", "Sonnet 4.7")
                 .authoritative(true),
         );
         let text = lines_to_string(&status_lines(&app));
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn status_lines_uses_custom_title() {
         let mut app = App::test_default();
-        app.session_id = Some(crate::agent::model::SessionId::new("test-sess-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("test-sess-1"));
         app.recent_sessions = vec![crate::app::RecentSessionInfo {
             session_id: "test-sess-1".to_owned(),
             summary: String::new(),
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn login_method_maps_oauth() {
-        let account = crate::agent::types::AccountInfo {
+        let account = crate::bridge::types::AccountInfo {
             api_key_source: Some("oauth".to_owned()),
             ..Default::default()
         };
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn login_method_maps_user_key() {
-        let account = crate::agent::types::AccountInfo {
+        let account = crate::bridge::types::AccountInfo {
             api_key_source: Some("user".to_owned()),
             ..Default::default()
         };
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn login_method_maps_external_provider() {
-        let account = crate::agent::types::AccountInfo {
+        let account = crate::bridge::types::AccountInfo {
             api_provider: Some("bedrock".to_owned()),
             ..Default::default()
         };
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn status_lines_render_api_provider() {
         let mut app = App::test_default();
-        app.account_info = Some(crate::agent::types::AccountInfo {
+        app.account_info = Some(crate::bridge::types::AccountInfo {
             api_provider: Some("mantle".to_owned()),
             ..Default::default()
         });
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn login_method_falls_back_to_unknown() {
-        let account = crate::agent::types::AccountInfo::default();
+        let account = crate::bridge::types::AccountInfo::default();
         assert_eq!(login_method_label(&account), "Unknown");
     }
 

@@ -4,7 +4,7 @@ use super::overlay::{
     render_overlay_shell,
 };
 use super::theme;
-use crate::agent::types::{
+use crate::bridge::types::{
     ElicitationAction, ElicitationMode, McpServerConnectionStatus, McpServerStatus,
     McpServerStatusConfig,
 };
@@ -668,7 +668,7 @@ fn status_counts(app: &App) -> StatusCounts {
 }
 
 fn elicitation_actions(
-    request: &crate::agent::types::ElicitationRequest,
+    request: &crate::bridge::types::ElicitationRequest,
 ) -> Vec<ElicitationAction> {
     match request.mode {
         ElicitationMode::Url => {
@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn renders_live_server_snapshot_as_list_only() {
         let mut app = App::test_default();
-        app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
         app.mcp.servers = vec![
             McpServerStatus {
                 name: "notion".to_owned(),
@@ -755,7 +755,7 @@ mod tests {
             McpServerStatus {
                 name: "filesystem".to_owned(),
                 status: McpServerConnectionStatus::Connected,
-                server_info: Some(crate::agent::types::McpServerInfo {
+                server_info: Some(crate::bridge::types::McpServerInfo {
                     name: "Filesystem".to_owned(),
                     version: "1.2.3".to_owned(),
                 }),
@@ -769,10 +769,10 @@ mod tests {
                     env: BTreeMap::new(),
                 }),
                 scope: Some("project".to_owned()),
-                tools: vec![crate::agent::types::McpTool {
+                tools: vec![crate::bridge::types::McpTool {
                     name: "read_file".to_owned(),
                     description: Some("Read a file".to_owned()),
-                    annotations: Some(crate::agent::types::McpToolAnnotations {
+                    annotations: Some(crate::bridge::types::McpToolAnnotations {
                         read_only: Some(true),
                         destructive: Some(false),
                         open_world: Some(false),

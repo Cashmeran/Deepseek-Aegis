@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{App, AppStatus, CancelOrigin, ChatMessage, MessageBlock, MessageRole, TextBlock};
-use crate::agent::events::ClientEvent;
-use crate::agent::model;
+use crate::bridge::events::ClientEvent;
+use crate::bridge::model;
 use crate::app::slash;
 
 pub(super) fn submit_input(app: &mut App) {
@@ -139,7 +139,7 @@ fn dispatch_prompt_turn(app: &mut App, text: String) {
     let _ = app.finalize_in_progress_tool_calls(model::ToolCallStatus::Failed);
 
     // Aegis bridge: route through our backend
-    if let Some(tx) = crate::aegis_bridge::input_tx() {
+    if let Some(tx) = crate::bridge::native::input_tx() {
         let _ = tx.send(text);
         return;
     }
@@ -168,7 +168,7 @@ fn dispatch_prompt_turn(app: &mut App, text: String) {
     // so the model can correlate user references with image attachments.
     match conn.prompt_with_images(sid.to_string(), text, images) {
         Ok(resp) => {
-            crate::app::session_runtime::request_context_usage_refresh(app);
+            crate::app::session::runtime::request_context_usage_refresh(app);
             tracing::info!(
                 target: crate::logging::targets::APP_INPUT,
                 event_name = "prompt_dispatched",
@@ -189,14 +189,14 @@ fn dispatch_prompt_turn(app: &mut App, text: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::wire::BridgeCommand;
+    use crate::bridge::wire::BridgeCommand;
     use crate::app::{FullscreenView, SurfaceMode};
 
     fn app_with_connection()
-    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::agent::wire::CommandEnvelope>) {
+    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::wire::CommandEnvelope>) {
         let mut app = App::test_default();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         app.session_id = Some(model::SessionId::new("session-1"));
         (app, rx)
     }
@@ -471,7 +471,7 @@ mod tests {
     fn dispatch_prompt_turn_without_session_id_leaves_state_unchanged() {
         let mut app = App::test_default();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         app.status = AppStatus::Ready;
 
         dispatch_prompt_turn(&mut app, "hello".into());

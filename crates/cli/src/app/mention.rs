@@ -1,7 +1,8 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{AUTOCOMPLETE_VISIBLE_ROWS, App, FocusTarget, dialog::DialogState, file_index};
+use super::{AUTOCOMPLETE_VISIBLE_ROWS, App, FocusTarget, file_index};
+use super::interaction::dialog::DialogState;
 
 /// Minimum query length before scanning the filesystem for matches.
 pub const MIN_QUERY_CHARS: usize = 1;

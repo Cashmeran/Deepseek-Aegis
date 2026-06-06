@@ -1,7 +1,7 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::agent::model;
+use crate::bridge::model;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,10 +153,10 @@ pub struct SessionUsageState {
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct McpState {
-    pub servers: Vec<crate::agent::types::McpServerStatus>,
+    pub servers: Vec<crate::bridge::types::McpServerStatus>,
     pub in_flight: bool,
     pub last_error: Option<String>,
-    pub pending_elicitation: Option<crate::agent::types::ElicitationRequest>,
+    pub pending_elicitation: Option<crate::bridge::types::ElicitationRequest>,
 }
 
 pub const DEFAULT_RENDER_CACHE_BUDGET_BYTES: usize = 24 * 1024 * 1024;

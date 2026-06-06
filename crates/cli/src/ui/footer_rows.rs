@@ -1,7 +1,7 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::agent::model;
+use crate::bridge::model;
 use crate::app::{App, MessageBlock, MessageRole};
 use crate::ui::theme;
 use ratatui::buffer::Buffer;
@@ -358,7 +358,7 @@ fn mcp_needs_auth_count(app: &App) -> usize {
         .servers
         .iter()
         .filter(|server| {
-            matches!(server.status, crate::agent::types::McpServerConnectionStatus::NeedsAuth)
+            matches!(server.status, crate::bridge::types::McpServerConnectionStatus::NeedsAuth)
         })
         .count()
 }
@@ -448,7 +448,7 @@ fn buffer_row_to_line(buf: &Buffer, area: Rect, row: u16) -> Line<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::types::{McpServerConnectionStatus, McpServerStatus};
+    use crate::bridge::types::{McpServerConnectionStatus, McpServerStatus};
     use crate::app::{
         App, AppStatus, BlockCache, ChatMessage, InlinePermission, MessageBlock, MessageRole,
         ModeState, TerminalSnapshotMode, ToolCallInfo,

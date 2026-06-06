@@ -4,7 +4,7 @@ use super::{
     ResolvedSettingValue, RuntimeCatalogKind, SettingId, SettingOptions, SettingSpec,
     SettingValidation, store,
 };
-use crate::agent::model::AvailableModel;
+use crate::bridge::model::AvailableModel;
 use serde_json::Value;
 
 pub(super) fn resolve_setting_document(

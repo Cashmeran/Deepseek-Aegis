@@ -4,6 +4,7 @@
 
 mod commands;
 mod events;
+mod project;
 mod state;
 
 fn main() {
@@ -23,8 +24,24 @@ fn main() {
     .invoke_handler(tauri::generate_handler![
       commands::session::session_list,
       commands::session::recent_cwds,
+      commands::session::list_skills,
+      commands::session::load_projects,
+      commands::session::load_project_sessions,
+      commands::session::register_project,
+      commands::session::read_session_file,
+      commands::session::save_session_messages,
+      commands::session::delete_session,
+      commands::session::delete_project,
+      commands::session::check_existing_project,
       commands::client_event::client_event,
       commands::client_event::get_config,
+      project::project_init,
+      project::project_open,
+      project::project_scan,
+      project::project_check,
+      project::project_list_rules,
+      project::project_save_rule,
+      project::project_list_sessions,
     ])
     .run(tauri::generate_context!())
     .expect("error while running aegis desktop");

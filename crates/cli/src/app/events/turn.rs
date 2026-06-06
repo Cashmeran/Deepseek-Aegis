@@ -7,8 +7,8 @@ use super::super::{
 };
 use super::clear_compaction_state;
 use super::rate_limit::{format_rate_limit_summary, rate_limit_notice_key};
-use crate::agent::error_handling::{TurnErrorClass, classify_turn_error, summarize_internal_error};
-use crate::agent::model;
+use crate::bridge::error_handling::{TurnErrorClass, classify_turn_error, summarize_internal_error};
+use crate::bridge::model;
 use std::collections::BTreeSet;
 
 const CONVERSATION_INTERRUPTED_HINT: &str =
@@ -282,7 +282,7 @@ fn finish_ready_turn_exit(app: &mut App, exit: TurnExitState, tool_status: model
 
 pub(super) fn handle_turn_complete_event(
     app: &mut App,
-    terminal_reason: Option<crate::agent::types::TerminalReason>,
+    terminal_reason: Option<crate::bridge::types::TerminalReason>,
 ) {
     let exit = begin_turn_exit(app, true);
     let turn_was_active = exit.turn_was_active;
@@ -302,7 +302,7 @@ pub(super) fn handle_turn_complete_event(
     };
     finish_ready_turn_exit(app, exit, tool_status);
     request_post_turn_resize_purge_replay_if_needed(app);
-    crate::app::session_runtime::request_context_usage_refresh(app);
+    crate::app::session::runtime::request_context_usage_refresh(app);
     if turn_was_active {
         app.notifications.notify(
             app.config.preferred_notification_channel_effective(),
@@ -318,7 +318,7 @@ pub(super) fn handle_turn_error_event(
     app: &mut App,
     msg: &str,
     classified: Option<TurnErrorClass>,
-    terminal_reason: Option<crate::agent::types::TerminalReason>,
+    terminal_reason: Option<crate::bridge::types::TerminalReason>,
 ) {
     let exit = begin_turn_exit(app, true);
 
@@ -330,12 +330,12 @@ pub(super) fn handle_turn_error_event(
             message = "turn error suppressed after cancellation request",
             outcome = "cancelled",
             error_preview = %summary,
-            terminal_reason = terminal_reason.map_or("", crate::agent::types::TerminalReason::as_stored),
+            terminal_reason = terminal_reason.map_or("", crate::bridge::types::TerminalReason::as_stored),
         );
         app.pending_submit = None;
         finish_ready_turn_exit(app, exit, model::ToolCallStatus::Failed);
         request_post_turn_resize_purge_replay_if_needed(app);
-        crate::app::session_runtime::request_context_usage_refresh(app);
+        crate::app::session::runtime::request_context_usage_refresh(app);
         if app.surface_mode == super::super::SurfaceMode::Chat {
             super::super::input_submit::maybe_auto_submit_after_cancel(app);
         }
@@ -351,7 +351,7 @@ pub(super) fn handle_turn_error_event(
         outcome = "failure",
         error_class = ?error_class,
         error_preview = %summary,
-        terminal_reason = terminal_reason.map_or("", crate::agent::types::TerminalReason::as_stored),
+        terminal_reason = terminal_reason.map_or("", crate::bridge::types::TerminalReason::as_stored),
     );
     match error_class {
         TurnErrorClass::PlanLimit => {
@@ -408,7 +408,7 @@ pub(super) fn handle_turn_error_event(
     app.clear_active_turn_assistant();
     super::notices::clear_turn_notice_tracking(app);
     request_post_turn_resize_purge_replay_if_needed(app);
-    crate::app::session_runtime::request_context_usage_refresh(app);
+    crate::app::session::runtime::request_context_usage_refresh(app);
 }
 
 fn request_post_turn_resize_purge_replay_if_needed(app: &mut App) {

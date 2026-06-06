@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::notices::upsert_turn_notice;
-use crate::agent::model::ApiRetryError;
+use crate::bridge::model::ApiRetryError;
 use crate::app::{App, NoticeDedupKey, NoticeStage, SystemSeverity};
 
 pub(super) fn handle_api_retry_update(
@@ -61,7 +61,7 @@ fn format_retry_delay(retry_delay_ms: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{format_api_retry_message, format_retry_delay};
-    use crate::agent::model::ApiRetryError;
+    use crate::bridge::model::ApiRetryError;
 
     #[test]
     fn formats_api_retry_http_status() {

@@ -8,9 +8,9 @@ use super::super::view::{self, FullscreenView};
 use super::super::{App, AppStatus, LoginHint, SystemSeverity, UpdateNoticeState};
 use super::push_system_message_with_severity;
 use super::session_reset::{load_resume_history, reset_for_new_session};
-use crate::agent::client::AgentConnection;
-use crate::agent::events::ServiceStatusSeverity;
-use crate::agent::model;
+use crate::bridge::client::AgentConnection;
+use crate::bridge::events::ServiceStatusSeverity;
+use crate::bridge::model;
 use crate::error::AppError;
 use std::rc::Rc;
 
@@ -62,7 +62,7 @@ pub(super) fn handle_connected_client_event(
 
 pub(super) fn handle_sessions_listed_event(
     app: &mut App,
-    sessions: Vec<crate::agent::types::SessionListEntry>,
+    sessions: Vec<crate::bridge::types::SessionListEntry>,
 ) {
     let session_count = sessions.len();
     let pending_title_change = app.config.pending_session_title_change.take();
@@ -443,7 +443,7 @@ pub(super) fn apply_session_cwd(app: &mut App, cwd_raw: String) {
 }
 
 fn reconcile_session_picker_selection(app: &mut App, selected_session_id: Option<&str>) {
-    let session_count = super::super::session_picker::picker_session_count(app);
+    let session_count = super::super::session::picker::picker_session_count(app);
     if session_count == 0 {
         app.session_picker.selected = 0;
         app.session_picker.scroll_offset = 0;
@@ -473,7 +473,7 @@ fn maybe_open_startup_session_picker(app: &mut App) {
     }
 
     app.startup_session_picker_resolved = true;
-    let session_count = super::super::session_picker::picker_session_count(app);
+    let session_count = super::super::session::picker::picker_session_count(app);
     if session_count == 0 {
         push_system_message_with_severity(
             app,

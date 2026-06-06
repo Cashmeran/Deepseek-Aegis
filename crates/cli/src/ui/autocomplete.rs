@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::app::{AUTOCOMPLETE_VISIBLE_ROWS, App};
-use crate::app::{file_index, mention, slash, subagent};
+use crate::app::{file_index, mention, slash};
+use crate::app::tools::subagent;
 use crate::ui::theme;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -339,7 +340,8 @@ fn push_highlighted_text(
 #[cfg(test)]
 mod tests {
     use super::{composer_hint_height, composer_hint_rows, find_case_insensitive_range, is_active};
-    use crate::app::{AUTOCOMPLETE_VISIBLE_ROWS, App, file_index, mention, slash, subagent};
+    use crate::app::{AUTOCOMPLETE_VISIBLE_ROWS, App, file_index, mention, slash};
+use crate::app::tools::subagent;
     use crate::ui::theme;
     use std::time::SystemTime;
 
@@ -390,7 +392,7 @@ mod tests {
     fn bare_subagent_trigger_renders_single_placeholder_row() {
         let mut app = App::test_default();
         app.available_agents =
-            vec![crate::agent::model::AvailableAgent::new("reviewer", "Review code")];
+            vec![crate::bridge::model::AvailableAgent::new("reviewer", "Review code")];
         app.input.set_text("&");
         let _ = app.input.set_cursor(0, 1);
         subagent::sync_with_cursor(&mut app);

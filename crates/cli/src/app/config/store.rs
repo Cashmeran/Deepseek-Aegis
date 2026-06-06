@@ -11,7 +11,7 @@ use super::{
     DefaultPermissionMode, OutputStyle, PreferredNotifChannel, SettingId, SettingKind, SettingSpec,
     setting_spec,
 };
-use crate::agent::model::EffortLevel;
+use crate::bridge::model::EffortLevel;
 
 const SETTINGS_FILENAME: &str = "settings.json";
 const LOCAL_SETTINGS_FILENAME: &str = "settings.local.json";

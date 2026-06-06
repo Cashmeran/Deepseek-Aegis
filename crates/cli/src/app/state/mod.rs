@@ -34,8 +34,8 @@ pub use types::{
     UsageSourceMode, UsageState, UsageWindow,
 };
 
-use crate::agent::events::ClientEvent;
-use crate::agent::model;
+use crate::bridge::events::ClientEvent;
+use crate::bridge::model;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -47,14 +47,14 @@ use super::config::ConfigState;
 use super::file_index;
 use super::focus::{FocusContext, FocusManager, FocusOwner, FocusTarget};
 use super::git_context::GitContextState;
-use super::inline_interactions::{clear_inline_interaction_focus, focus_next_inline_interaction};
+use super::interaction::inline::{clear_inline_interaction_focus, focus_next_inline_interaction};
 use super::input::{InputSnapshot, InputState, parse_paste_placeholder_before_cursor};
 use super::keymap::ResolvedKeymap;
 use super::mention;
 use super::plugins::PluginsState;
 use super::slash;
-use super::subagent;
-use super::trust::TrustState;
+use super::tools::subagent;
+use super::auth::trust::TrustState;
 use super::view::SurfaceMode;
 use super::{SurfaceDirtyState, TerminalLifecycleState};
 
@@ -156,7 +156,7 @@ pub struct App {
     pub exit_error: Option<crate::error::AppError>,
     pub session_id: Option<model::SessionId>,
     /// Agent connection handle. `None` while connecting (before bridge is ready).
-    pub conn: Option<Rc<crate::agent::client::AgentConnection>>,
+    pub conn: Option<Rc<crate::bridge::client::AgentConnection>>,
     /// Monotonic session authority epoch used to ignore stale async view data.
     pub session_scope_epoch: u64,
     pub current_model: Option<model::CurrentModel>,
@@ -198,7 +198,7 @@ pub struct App {
     /// and explicitly owned subagent child tools.
     pub tool_call_scopes: HashMap<String, ToolCallScope>,
     /// Shared terminal process map - used to snapshot output on completion.
-    pub terminals: crate::agent::events::TerminalMap,
+    pub terminals: crate::bridge::events::TerminalMap,
     /// O(1) lookup: `tool_call_id` -> `(message_index, block_index)`.
     /// Use `lookup_tool_call()`, `index_tool_call()`.
     pub tool_call_index: HashMap<String, (usize, usize)>,
@@ -253,7 +253,7 @@ pub struct App {
     /// Pending image attachments accumulated via Ctrl+V clipboard reads and
     /// consumed on submit. No cap on count — this is a developer tool, so
     /// users are trusted to attach as many images as they need.
-    pub pending_images: Vec<crate::app::clipboard_image::ImageAttachment>,
+    pub pending_images: Vec<crate::app::tools::clipboard_image::ImageAttachment>,
     /// Git repo context used by footer/status rendering and live branch tracking.
     pub(crate) git_context: GitContextState,
     /// Update availability state for the current app lifetime.
@@ -277,7 +277,7 @@ pub struct App {
     /// True while the SDK reports active compaction.
     pub is_compacting: bool,
     /// Account info from the bridge status snapshot (email, org, subscription).
-    pub account_info: Option<crate::agent::types::AccountInfo>,
+    pub account_info: Option<crate::bridge::types::AccountInfo>,
 
     /// Indexed terminal tool calls for per-frame terminal snapshot updates.
     /// Avoids O(n*m) scan of all messages/blocks every frame.
@@ -1028,17 +1028,17 @@ impl App {
     }
 
     pub fn reconcile_trust_state_from_preferences_and_cwd(&mut self) {
-        let lookup = crate::app::trust::store::read_status(
+        let lookup = crate::app::auth::trust::store::read_status(
             &self.config.committed_preferences_document,
             Path::new(&self.cwd_raw),
         );
         self.trust.project_key = lookup.project_key;
         self.trust.status = if lookup.trusted {
-            crate::app::trust::TrustStatus::Trusted
+            crate::app::auth::trust::TrustStatus::Trusted
         } else {
-            crate::app::trust::TrustStatus::Untrusted
+            crate::app::auth::trust::TrustStatus::Untrusted
         };
-        self.trust.selection = crate::app::trust::TrustSelection::Yes;
+        self.trust.selection = crate::app::auth::trust::TrustSelection::Yes;
         self.trust.last_error = self
             .config
             .preferences_path
@@ -1329,9 +1329,9 @@ mod tests {
     #[test]
     fn clear_session_runtime_identity_resets_session_usage() {
         let mut app = App::test_default();
-        app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
         app.current_model = Some(
-            crate::agent::model::CurrentModel::new("sonnet", "Claude Sonnet", "Claude Sonnet")
+            crate::bridge::model::CurrentModel::new("sonnet", "Claude Sonnet", "Claude Sonnet")
                 .authoritative(true),
         );
         app.mode = Some(crate::app::ModeState {
@@ -1467,7 +1467,7 @@ mod tests {
     }
 
     fn set_account_subscription(app: &mut App, subscription: &str) {
-        app.account_info = Some(crate::agent::types::AccountInfo {
+        app.account_info = Some(crate::bridge::types::AccountInfo {
             subscription_type: Some(subscription.to_owned()),
             ..Default::default()
         });
@@ -1506,7 +1506,7 @@ mod tests {
         let mut app = make_test_app();
         app.ensure_welcome_message();
 
-        app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
         set_account_subscription(&mut app, "Pro");
 
         app.sync_welcome_snapshot();
@@ -1523,7 +1523,7 @@ mod tests {
     fn sync_welcome_snapshot_updates_existing_canonical_welcome_in_place() {
         let mut app = make_test_app();
         app.ensure_welcome_message();
-        app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
         set_account_subscription(&mut app, "Pro");
         app.sync_welcome_snapshot();
 
@@ -2419,7 +2419,7 @@ mod tests {
                 primary: "/config".into(),
                 secondary: Some("Open settings".into()),
             }],
-            dialog: crate::app::dialog::DialogState::default(),
+            dialog: crate::app::interaction::dialog::DialogState::default(),
         });
         app
     }

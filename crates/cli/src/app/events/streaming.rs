@@ -5,7 +5,7 @@ use super::super::{
     App, AppStatus, ChatMessage, MessageBlock, MessageRole, TextBlock, TextBlockSpacing,
     TextSplitDecision, TextSplitKind, default_cache_split_policy, find_text_split,
 };
-use crate::agent::model;
+use crate::bridge::model;
 
 pub(super) fn handle_agent_message_chunk(app: &mut App, chunk: model::ContentChunk) {
     let model::ContentBlock::Text(text) = chunk.content else {
@@ -124,7 +124,7 @@ pub(super) fn find_text_block_split_index(text: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::handle_agent_message_chunk;
-    use crate::agent::model;
+    use crate::bridge::model;
     use crate::app::{App, ChatMessage, MessageBlock, MessageRole, TextBlockSpacing};
 
     #[test]

@@ -6,8 +6,8 @@ use super::tool_calls::{
     current_session_id, has_in_progress_tool_calls, json_value_size, log_terminal_spawned,
     parent_tool_use_id_from_meta, sdk_tool_name_from_meta, tool_scope_name,
 };
-use crate::agent::model;
-use crate::app::todos::{parse_todos_if_present, set_todos};
+use crate::bridge::model;
+use crate::app::tools::todos::{parse_todos_if_present, set_todos};
 
 pub(super) fn handle_tool_call_update_session(app: &mut App, tcu: &model::ToolCallUpdate) {
     let id_str = tcu.tool_call_id.clone();
@@ -185,7 +185,7 @@ fn apply_tool_call_title_update(tc: &mut ToolCallInfo, title: Option<&str>, cwd_
 fn apply_tool_call_content_update(
     tc: &mut ToolCallInfo,
     content: Option<&[model::ToolCallContent]>,
-    terminals: &crate::agent::events::TerminalMap,
+    terminals: &crate::bridge::events::TerminalMap,
     terminal_subscription: &mut Option<String>,
 ) -> bool {
     let Some(content) = content else {

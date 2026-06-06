@@ -19,14 +19,14 @@ use super::state::{
     CacheMetrics, HistoryRetentionPolicy, HistoryRetentionStats, RenderCacheBudget,
     SessionPickerState,
 };
-use super::trust;
+use super::auth::trust;
 use super::view::SurfaceMode;
 use super::{App, AppStatus, FocusManager, TodoItem};
 use super::{SurfaceDirtyState, TerminalLifecycleState};
-use crate::agent::client::AgentConnection;
-use crate::agent::events::ClientEvent;
-use crate::agent::model;
-use crate::agent::wire::SessionLaunchSettings;
+use crate::bridge::client::AgentConnection;
+use crate::bridge::events::ClientEvent;
+use crate::bridge::model;
+use crate::bridge::wire::SessionLaunchSettings;
 use crate::error::AppError;
 use crate::{Cli, Command};
 use std::collections::{HashMap, HashSet};
@@ -74,7 +74,7 @@ pub fn create_app(cli: &Cli) -> App {
 
     let (event_tx, event_rx) = mpsc::unbounded_channel();
     let (file_index_event_tx, file_index_event_rx) = std::sync::mpsc::channel();
-    let terminals: crate::agent::events::TerminalMap =
+    let terminals: crate::bridge::events::TerminalMap =
         Rc::new(std::cell::RefCell::new(HashMap::new()));
     let perf_path = match crate::logging::resolve_perf_path(cli) {
         Ok(path) => path,
@@ -314,8 +314,8 @@ pub(super) fn take_connection_slot() -> Option<ConnectionSlot> {
 mod tests {
     use super::type_converters::map_session_update;
     use crate::Cli;
-    use crate::agent::model;
-    use crate::agent::types;
+    use crate::bridge::model;
+    use crate::bridge::types;
     use crate::app::{FullscreenView, SurfaceMode, TerminalLifecycleState};
 
     #[test]

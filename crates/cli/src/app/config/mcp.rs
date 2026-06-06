@@ -42,7 +42,7 @@ pub struct McpCallbackUrlOverlayState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct McpElicitationOverlayState {
-    pub request: crate::agent::types::ElicitationRequest,
+    pub request: crate::bridge::types::ElicitationRequest,
     pub selected_index: usize,
     pub browser_opened: bool,
     pub browser_open_error: Option<String>,
@@ -50,7 +50,7 @@ pub struct McpElicitationOverlayState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McpAuthRedirectOverlayState {
-    pub redirect: crate::agent::types::McpAuthRedirect,
+    pub redirect: crate::bridge::types::McpAuthRedirect,
     pub selected_index: usize,
     pub browser_opened: bool,
     pub browser_open_error: Option<String>,
@@ -136,7 +136,7 @@ pub(super) fn handle_mcp_key(app: &mut App, key: KeyEvent) -> bool {
             if matches!(ch, 'r' | 'R')
                 && (modifiers.is_empty() || modifiers == KeyModifiers::SHIFT) =>
         {
-            crate::app::session_runtime::request_runtime_reload(app);
+            crate::app::session::runtime::request_runtime_reload(app);
             refresh_mcp_snapshot(app);
             true
         }
@@ -384,7 +384,7 @@ pub(crate) fn submit_mcp_oauth_callback_url(
 pub(crate) fn send_mcp_elicitation_response(
     app: &mut App,
     request_id: &str,
-    action: crate::agent::types::ElicitationAction,
+    action: crate::bridge::types::ElicitationAction,
     content: Option<serde_json::Value>,
 ) {
     let Some(conn) = app.conn.as_ref() else {
@@ -472,17 +472,17 @@ pub(crate) fn open_mcp_server_details(
 
 #[must_use]
 pub(crate) fn available_mcp_actions(
-    server: &crate::agent::types::McpServerStatus,
+    server: &crate::bridge::types::McpServerStatus,
 ) -> Vec<McpServerActionKind> {
     let mut actions = vec![McpServerActionKind::RefreshSnapshot];
-    if matches!(server.status, crate::agent::types::McpServerConnectionStatus::Disabled) {
+    if matches!(server.status, crate::bridge::types::McpServerConnectionStatus::Disabled) {
         actions.push(McpServerActionKind::Enable);
     } else {
         if matches!(
             server.status,
-            crate::agent::types::McpServerConnectionStatus::NeedsAuth
-                | crate::agent::types::McpServerConnectionStatus::Failed
-                | crate::agent::types::McpServerConnectionStatus::Pending
+            crate::bridge::types::McpServerConnectionStatus::NeedsAuth
+                | crate::bridge::types::McpServerConnectionStatus::Failed
+                | crate::bridge::types::McpServerConnectionStatus::Pending
         ) {
             actions.push(McpServerActionKind::Authenticate);
         }
@@ -495,21 +495,21 @@ pub(crate) fn available_mcp_actions(
 
 #[must_use]
 pub(crate) fn is_mcp_action_available(
-    server: &crate::agent::types::McpServerStatus,
+    server: &crate::bridge::types::McpServerStatus,
     action: McpServerActionKind,
 ) -> bool {
     !matches!(
         (action, server.config.as_ref()),
         (
             McpServerActionKind::Authenticate,
-            Some(crate::agent::types::McpServerStatusConfig::ClaudeaiProxy { .. })
+            Some(crate::bridge::types::McpServerStatusConfig::ClaudeaiProxy { .. })
         )
     )
 }
 
 pub(crate) fn present_mcp_elicitation_request(
     app: &mut App,
-    request: crate::agent::types::ElicitationRequest,
+    request: crate::bridge::types::ElicitationRequest,
 ) {
     let request_id_for_log = request.request_id.clone();
     let server_name_for_log = request.server_name.clone();
@@ -521,7 +521,7 @@ pub(crate) fn present_mcp_elicitation_request(
     app.config.active_tab = ConfigTab::Mcp;
     refresh_mcp_snapshot(app);
     let (browser_opened, browser_open_error) =
-        if matches!(request.mode, crate::agent::types::ElicitationMode::Url) {
+        if matches!(request.mode, crate::bridge::types::ElicitationMode::Url) {
             request.url.as_deref().map_or(
                 (false, Some("SDK did not provide an auth URL".to_owned())),
                 |url| match open_url_in_browser(url) {
@@ -555,7 +555,7 @@ pub(crate) fn present_mcp_elicitation_request(
 
 pub(crate) fn present_mcp_auth_redirect(
     app: &mut App,
-    redirect: crate::agent::types::McpAuthRedirect,
+    redirect: crate::bridge::types::McpAuthRedirect,
 ) {
     let server_name_for_log = redirect.server_name.clone();
     view::set_fullscreen_view(app, FullscreenView::Config);
@@ -611,7 +611,7 @@ pub(crate) fn handle_mcp_elicitation_completed(
 
 pub(crate) fn handle_mcp_operation_error(
     app: &mut App,
-    error: &crate::agent::types::McpOperationError,
+    error: &crate::bridge::types::McpOperationError,
 ) {
     app.mcp.in_flight = false;
     let formatted = format_mcp_operation_error(error);
@@ -629,7 +629,7 @@ pub(crate) fn handle_mcp_operation_error(
     );
 }
 
-fn format_mcp_operation_error(error: &crate::agent::types::McpOperationError) -> String {
+fn format_mcp_operation_error(error: &crate::bridge::types::McpOperationError) -> String {
     let action = match error.operation.as_str() {
         "authenticate" => "authenticate",
         "clear-auth" => "clear auth for",

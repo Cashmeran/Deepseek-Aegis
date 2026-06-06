@@ -3,7 +3,7 @@
 
 use super::messages::MessageBlock;
 use super::types::{AppStatus, CacheBudgetEnforceStats};
-use crate::agent::model;
+use crate::bridge::model;
 use std::cmp::Reverse;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

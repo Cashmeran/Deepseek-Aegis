@@ -1,6 +1,7 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use aegis_core::agent::system_prompt::SystemPromptBuilder;
 use aegis_core::agent::AgentLoop;
@@ -8,6 +9,8 @@ use aegis_core::llm::client::StreamEvent;
 use aegis_core::llm::deepseek::DeepSeekClient;
 use aegis_core::tool_system::registry::ToolRegistry;
 use aegis_core::types::config::AgentConfig;
+use aegis_core::types::tool::ExecutionMode;
+use aegis_memory::MemoryStore;
 
 use crate::events::{ClientEvent, ServerEvent, SessionStatus};
 use crate::state::SessionState;
@@ -35,42 +38,148 @@ fn emit(app: &AppHandle, event: ServerEvent) -> Result<(), String> {
     app.emit("server-event", &event).map_err(|e| e.to_string())
 }
 
-// ── Agent factory — one AgentLoop per session ─────────────────────
+// ── Agent factory — full toolkit + memory + code-graph ─────────────
 
-fn build_agent(api_key: &str, model: &str) -> Result<AgentLoop<DeepSeekClient>, String> {
+fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoop<DeepSeekClient>, String> {
     let llm = Arc::new(DeepSeekClient::new(api_key.into(), model)
         .map_err(|e| format!("Failed to create DeepSeek client: {e}"))?);
 
     let mut config = AgentConfig::default();
     config.default_model = model.to_string();
+    if let Some(dir) = cwd {
+        config.workspace_dir = dir.to_string();
+    }
 
     let registry = Arc::new(ToolRegistry::new());
     let sp = Arc::new(SystemPromptBuilder::new(config.clone()));
 
-    // Register core tools (subset for desktop — can expand later)
+    // ── ReadTracker (shared across file tools) ──
+    let read_tracker = Arc::new(aegis_tools::shared::ReadTracker::new());
+
+    // ═══ Register ALL 31 tools (CLI parity) ═══
     use aegis_tools::*;
+
+    // File operations
     registry.register(Arc::new(BashTool::new())).ok();
-    registry.register(Arc::new(FileReadTool::new())).ok();
-    registry.register(Arc::new(FileEditTool::new())).ok();
+    registry.register(Arc::new(FileReadTool::new().with_read_tracker(read_tracker.clone()))).ok();
+    registry.register(Arc::new(FileEditTool::new().with_read_tracker(read_tracker.clone()))).ok();
     registry.register(Arc::new(FileWriteTool::new())).ok();
     registry.register(Arc::new(ListDirTool)).ok();
+    registry.register(Arc::new(FileSearchTool)).ok();
+
+    // Search
     registry.register(Arc::new(GlobTool::new())).ok();
     registry.register(Arc::new(GrepTool::new())).ok();
+
+    // Planning & task tracking
     registry.register(Arc::new(PlanTool)).ok();
     registry.register(Arc::new(TodoWriteTool::new())).ok();
+    let task_store = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+    registry.register(Arc::new(TaskCreateTool::new(task_store.clone()))).ok();
+    registry.register(Arc::new(TaskGetTool::new(task_store.clone()))).ok();
+    registry.register(Arc::new(TaskListTool::new(task_store.clone()))).ok();
+    registry.register(Arc::new(TaskUpdateTool::new(task_store.clone()))).ok();
+
+    // Git
     registry.register(Arc::new(GitStatusTool)).ok();
     registry.register(Arc::new(GitDiffTool)).ok();
+    registry.register(Arc::new(GitLogTool)).ok();
+
+    // Code quality
     registry.register(Arc::new(RunTestsTool)).ok();
+    registry.register(Arc::new(ValidateTool)).ok();
+    registry.register(Arc::new(ReviewTool)).ok();
+    registry.register(Arc::new(DiagnosticsTool)).ok();
+    registry.register(Arc::new(ApplyPatchTool)).ok();
+
+    // Web
     registry.register(Arc::new(WebSearchTool::new())).ok();
     registry.register(Arc::new(WebFetchTool::new())).ok();
+
+    // Agent interaction
+    registry.register(Arc::new(AskUserTool)).ok();
+    registry.register(Arc::new(RememberTool::new())).ok();
+
+    // LSP (project-level diagnostics)
+    let lsp_root = cwd.map(PathBuf::from).unwrap_or_default();
+    registry.register(Arc::new(LspTool::new(lsp_root))).ok();
+
+    // Infrastructure
+    registry.register(Arc::new(SkillTool::new())).ok();
+    registry.register(Arc::new(AgentTool::new())).ok();
+    registry.register(Arc::new(ConfigTool::new())).ok();
+    registry.register(Arc::new(ToolSearchTool::new())).ok();
 
     let tools_json = registry.get_anthropic_tools_json();
     sp.freeze_tools(&tools_json);
 
     let mut agent = AgentLoop::new(config, llm, registry, sp);
-    agent.set_mode(aegis_core::types::tool::ExecutionMode::Default);
+
+    // ── Project rules ──
+    if let Some(dir) = cwd {
+        let rules = load_project_rules(dir);
+        if !rules.is_empty() {
+            agent = agent.with_project_rules(rules);
+        }
+    }
+
+    // ── Memory store (GAAMA causal memory) ──
+    // Opens/creates .aegis/memory.db, initializes schema.
+    // Retrieval is tool-mediated: the agent uses the Remember tool to
+    // record and query memories. The callback provides recent context.
+    let memory_db_path = project_db_path(cwd, "memory.db");
+    if let Ok(store) = aegis_memory::SqliteMemoryStore::open(&memory_db_path) {
+        let mem_store = Arc::new(store);
+        let mem_retrieve = {
+            let ms = Arc::clone(&mem_store);
+            Arc::new(move |query: &str| -> String {
+                retrieve_memory_via_store(&ms, query)
+            }) as Arc<dyn Fn(&str) -> String + Send + Sync>
+        };
+        agent = agent.with_memory(mem_retrieve);
+    }
+
+    // ── Code graph (built on project scan, queried via LSP/file tools) ──
+    if let Some(dir) = cwd {
+        let graph_db_path = project_db_path(Some(dir), "graph.db");
+        if !graph_db_path.exists() {
+            // Graph will be built on first project_scan in the background
+            log::info!("graph.db not found, will build on first scan");
+        }
+    }
 
     Ok(agent)
+}
+
+/// Resolve a project-level DB path: .aegis/<name> if cwd set, else global ~/.aegis/<name>
+fn project_db_path(cwd: Option<&str>, name: &str) -> PathBuf {
+    if let Some(dir) = cwd {
+        PathBuf::from(dir).join(".aegis").join(name)
+    } else {
+        dirs::home_dir().unwrap_or_default().join(".aegis").join(name)
+    }
+}
+
+/// Load all .aegis/rules/*.md files and concatenate into a single rules string.
+fn load_project_rules(cwd: &str) -> String {
+    let rules_dir = std::path::Path::new(cwd).join(".aegis").join("rules");
+    let mut rules = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&rules_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "md") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if !content.trim().is_empty() {
+                        let name = path.file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        rules.push(format!("### {name}\n{content}"));
+                    }
+                }
+            }
+        }
+    }
+    rules.join("\n\n")
 }
 
 // ── Config loader (frontend calls this on startup) ────────────────
@@ -94,7 +203,7 @@ pub async fn client_event(
             let sessions = state.list_sessions();
             emit(&app, ServerEvent::SessionList { sessions })
         }
-        ClientEvent::SessionStart { title, prompt, cwd, provider: _, api_key, model, .. } => {
+        ClientEvent::SessionStart { title, prompt, cwd, provider: _, api_key, model, execution_mode, .. } => {
             let mut api_key = api_key.trim().to_string();
             let mut model = model.trim().to_string();
             if api_key.is_empty() { (api_key, model) = read_api_key(); }
@@ -105,6 +214,13 @@ pub async fn client_event(
                 });
             }
 
+            let mode_str = execution_mode.unwrap_or_else(|| "default".into());
+
+            // Register project in global index
+            if let Some(ref dir) = cwd {
+                crate::commands::session::register_project(dir.clone(), title.clone()).ok();
+            }
+
             let session = state.create_session(title, cwd.clone());
             state.store_provider(&session.id, crate::state::ProviderSettings {
                 provider: crate::events::ProviderKind::DeepSeek,
@@ -112,7 +228,21 @@ pub async fn client_event(
                 model: model.clone(),
                 base_url: None,
             });
+            state.store_mode(&session.id, &mode_str);
+            if let Some(ref dir) = cwd { state.store_cwd(&session.id, dir); }
             let sid = session.id.clone();
+
+            // If no prompt given, just create session without starting agent
+            if prompt.trim().is_empty() {
+                emit(&app, ServerEvent::SessionStatusEvent {
+                    session_id: sid.clone(),
+                    status: SessionStatus::Idle,
+                    title: Some(session.title.clone()),
+                    cwd: session.cwd.clone(),
+                    error: None,
+                })?;
+                return Ok(());
+            }
 
             emit(&app, ServerEvent::SessionStatusEvent {
                 session_id: sid.clone(),
@@ -125,9 +255,11 @@ pub async fn client_event(
 
             let app_handle = app.clone();
             let session_id = sid.clone();
+            let cwd_for_turn = cwd.clone();
             tauri::async_runtime::spawn(async move {
+                let state = app_handle.state::<SessionState>();
                 let result = run_agent_turn(
-                    &app_handle, &session_id, &api_key, &model, &prompt,
+                    &app_handle, &session_id, &api_key, &model, &prompt, &mode_str, cwd_for_turn.as_deref(), &state, &[],
                 ).await;
                 if let Err(msg) = result {
                     let _ = emit(&app_handle, ServerEvent::RunnerError {
@@ -137,23 +269,51 @@ pub async fn client_event(
             });
             Ok(())
         }
-        ClientEvent::SessionContinue { session_id, prompt } => {
+        ClientEvent::SessionContinue { session_id, prompt, messages } => {
+            let prev_msgs = messages.unwrap_or_default();
+            // Auto-init session if this is a historical project (loaded from disk without SessionStart)
             let provider = match state.get_provider(&session_id) {
                 Some(p) => p,
-                None => return emit(&app, ServerEvent::RunnerError {
-                    session_id: Some(session_id), message: "Session not found".into(),
-                }),
+                None => {
+                    let (key, model) = read_api_key();
+                    if key.is_empty() {
+                        return emit(&app, ServerEvent::RunnerError {
+                            session_id: Some(session_id.clone()),
+                            message: "API Key 未配置".into(),
+                        });
+                    }
+                    let settings = crate::state::ProviderSettings {
+                        provider: crate::events::ProviderKind::DeepSeek,
+                        api_key: key,
+                        model,
+                        base_url: None,
+                    };
+                    state.store_provider(&session_id, settings.clone());
+                    state.store_mode(&session_id, "default");
+                    // Use session_id as cwd (historical projects stored by path)
+                    state.store_cwd(&session_id, &session_id);
+                    settings
+                }
             };
+            let mode_str = state.get_mode(&session_id).unwrap_or_else(|| "default".into());
+            let cwd = state.get_cwd(&session_id);
 
             emit(&app, ServerEvent::StreamUserPrompt { session_id: session_id.clone(), prompt: prompt.clone() })?;
+            emit(&app, ServerEvent::SessionStatusEvent {
+                session_id: session_id.clone(),
+                status: SessionStatus::Running,
+                title: None, cwd: cwd.clone(), error: None,
+            })?;
 
             let app_handle = app.clone();
             let sid = session_id.clone();
             let key = provider.api_key.clone();
             let model = provider.model.clone();
+            let prev = prev_msgs.clone();
             tauri::async_runtime::spawn(async move {
+                let state = app_handle.state::<SessionState>();
                 let result = run_agent_turn(
-                    &app_handle, &sid, &key, &model, &prompt,
+                    &app_handle, &sid, &key, &model, &prompt, &mode_str, cwd.as_deref(), &state, &prev,
                 ).await;
                 if let Err(msg) = result {
                     let _ = emit(&app_handle, ServerEvent::RunnerError {
@@ -164,7 +324,7 @@ pub async fn client_event(
             Ok(())
         }
         ClientEvent::SessionStop { session_id } => {
-            state.remove_session(&session_id);
+            state.cancel_session(&session_id);
             emit(&app, ServerEvent::SessionStatusEvent {
                 session_id: session_id.clone(),
                 status: SessionStatus::Completed,
@@ -187,8 +347,29 @@ async fn run_agent_turn(
     api_key: &str,
     model: &str,
     prompt: &str,
+    mode: &str,
+    cwd: Option<&str>,
+    state: &SessionState,
+    prev_messages: &[serde_json::Value],
 ) -> Result<(), String> {
-    let mut agent = build_agent(api_key, model)?;
+    // Reuse existing agent or build a new one
+    let mut agent = match state.take_agent(session_id) {
+        Some(existing) => existing,
+        None => {
+            let mut a = build_agent(api_key, model, cwd)?;
+            // Replay saved messages so the fresh agent has conversation context
+            replay_conversation(&mut a, prev_messages);
+            a
+        }
+    };
+
+    let exec_mode = match mode {
+        "chat" => ExecutionMode::Chat,
+        "plan" => ExecutionMode::Plan,
+        "yolo" => ExecutionMode::Yolo,
+        _ => ExecutionMode::Default,
+    };
+    agent.set_mode(exec_mode);
 
     let sid = session_id.to_string();
     let app_handle = app.clone();
@@ -229,8 +410,11 @@ async fn run_agent_turn(
                 })
             }
             StreamEvent::Done(resp) => {
-                let cost = (resp.usage.input_tokens as f64 * 0.14
-                    + resp.usage.output_tokens as f64 * 0.28) / 1_000_000.0;
+                let cache_hit = resp.usage.cache_read_tokens as f64;
+                let input = resp.usage.input_tokens as f64;
+                let output = resp.usage.output_tokens as f64;
+                let cache_miss = (input - cache_hit).max(0.0);
+                let cost = (cache_hit * 0.025 + cache_miss * 3.0 + output * 6.0) / 1_000_000.0;
                 emit(&app_handle, ServerEvent::StreamDone {
                     session_id: sid.clone(),
                     input_tokens: resp.usage.input_tokens,
@@ -244,6 +428,10 @@ async fn run_agent_turn(
 
     match output {
         Ok(_) => {
+            if let Some(dir) = cwd {
+                save_session_to_disk(dir, session_id, &agent);
+            }
+            state.put_agent(session_id, agent);
             emit(app, ServerEvent::SessionStatusEvent {
                 session_id: session_id.into(),
                 status: SessionStatus::Completed,
@@ -251,6 +439,153 @@ async fn run_agent_turn(
             }).ok();
             Ok(())
         }
-        Err(e) => Err(format!("Agent error: {e}")),
+        Err(e) => {
+            if let Some(dir) = cwd {
+                save_session_to_disk(dir, session_id, &agent);
+            }
+            state.put_agent(session_id, agent);
+            Err(format!("Agent error: {e}"))
+        }
     }
+}
+
+/// Replay saved frontend messages into a fresh AgentLoop's conversation state.
+fn replay_conversation(
+    agent: &mut aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>,
+    messages: &[serde_json::Value],
+) {
+    use aegis_core::types::message::Message;
+    for msg in messages {
+        let t = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        let content = match t {
+            "user_prompt" => msg.get("prompt").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            "assistant" => msg.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            _ => continue,
+        };
+        if content.is_empty() { continue; }
+        let m = match t {
+            "user_prompt" => Message::User(aegis_core::types::message::UserMessage {
+                id: format!("replay_{}", uuid::Uuid::new_v4()),
+                timestamp: chrono::Utc::now(),
+                content,
+                metadata: Default::default(),
+            }),
+            "assistant" => Message::Assistant(aegis_core::types::message::AssistantMessage {
+                id: format!("replay_{}", uuid::Uuid::new_v4()),
+                timestamp: chrono::Utc::now(),
+                thinking: None,
+                content: Some(content),
+                tool_uses: vec![],
+                model: None,
+                usage: None,
+                stop_reason: None,
+            }),
+            _ => continue,
+        };
+        agent.conversation_mut().add_message(m);
+    }
+}
+
+/// Persist conversation with temp-file + rename (crash-safe, pattern from Reasonix).
+/// Writes to .tmp first, then atomically renames — a crash mid-write never corrupts existing data.
+fn save_session_to_disk(
+    cwd: &str,
+    session_id: &str,
+    agent: &aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>,
+) {
+    use aegis_core::types::message::Message;
+    let sessions_dir = std::path::Path::new(cwd).join(".aegis").join("sessions");
+    if std::fs::create_dir_all(&sessions_dir).is_err() { return; }
+
+    let messages: Vec<serde_json::Value> = agent.conversation().messages().iter().map(|msg| match msg {
+        Message::User(m) => serde_json::json!({
+            "type": "user_prompt", "prompt": m.content, "id": m.id,
+        }),
+        Message::Assistant(m) => serde_json::json!({
+            "type": "assistant",
+            "text": m.content.clone().unwrap_or_default(),
+            "thinking": m.thinking.clone().unwrap_or_default(),
+            "id": m.id,
+        }),
+        Message::ToolResult(tr) => serde_json::json!({
+            "type": "tool_result",
+            "tool_use_id": tr.tool_use_id, "is_error": tr.is_error,
+            "output": tr.content.iter()
+                .filter_map(|cb| match cb {
+                    aegis_core::types::message::ContentBlock::Text { text } => Some(text.clone()),
+                    _ => None,
+                }).collect::<Vec<_>>().join("\n"),
+        }),
+        Message::System(s) => serde_json::json!({
+            "type": "system", "content": s.content,
+        }),
+    }).collect();
+
+    let entry = serde_json::json!({
+        "session_id": session_id,
+        "completed_at": chrono::Utc::now().to_rfc3339(),
+        "turn_count": messages.len(),
+        "total_cost_usd": agent.conversation().total_cost_usd(),
+        "messages": messages,
+    });
+
+    // Write to temp file first, then rename (crash-safe)
+    let final_path = sessions_dir.join(format!("{session_id}.json"));
+    let tmp_path = sessions_dir.join(format!("{session_id}.tmp"));
+    if let Ok(json) = serde_json::to_string_pretty(&entry) {
+        let _ = std::fs::write(&tmp_path, &json);
+        let _ = std::fs::rename(&tmp_path, &final_path);
+    }
+
+    // Update index
+    let index_path = sessions_dir.join("index.json");
+    let mut index: Vec<serde_json::Value> = std::fs::read_to_string(&index_path)
+        .ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    index.retain(|e| e.get("session_id").and_then(|v| v.as_str()) != Some(session_id));
+    index.push(serde_json::json!({
+        "session_id": session_id,
+        "completed_at": chrono::Utc::now().to_rfc3339(),
+        "turn_count": messages.len(),
+    }));
+    if let Ok(json) = serde_json::to_string_pretty(&index) {
+        let _ = std::fs::write(&index_path, json);
+    }
+}
+
+/// Search memory store for past insights and bugs matching the current query.
+fn retrieve_memory_via_store(store: &aegis_memory::SqliteMemoryStore, query: &str) -> String {
+    let keywords: Vec<&str> = query
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() > 2)
+        .collect();
+    if keywords.is_empty() {
+        return String::new();
+    }
+
+    // Walk recent episodes via consolidation API, match keywords
+    if let Ok(episodes) = store.get_pending_consolidation_episodes(0, 0) {
+        let matched: Vec<String> = episodes.iter()
+            .filter(|ep| {
+                let text = format!("{} {}", ep.user_request, ep.agent_response).to_lowercase();
+                keywords.iter().any(|kw| text.contains(&kw.to_lowercase()))
+            })
+            .take(5)
+            .map(|ep| {
+                let outcome = match ep.outcome {
+                    aegis_memory::EpisodeOutcome::Success => "OK",
+                    aegis_memory::EpisodeOutcome::Failure => "FAIL",
+                    aegis_memory::EpisodeOutcome::Unknown => "?",
+                    _ => "~",
+                };
+                format!("- [{outcome}] Q: {}\n  A: {}",
+                    ep.user_request,
+                    &ep.agent_response[..ep.agent_response.len().min(200)])
+            })
+            .collect();
+        if !matched.is_empty() {
+            return format!("## Relevant Past Experience\n{}", matched.join("\n"));
+        }
+    }
+
+    String::new()
 }

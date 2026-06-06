@@ -7,7 +7,7 @@ use super::{
     AppSlashCommand, parse, push_system_message, push_user_message, require_active_session,
     require_connection, set_command_pending,
 };
-use crate::agent::events::ClientEvent;
+use crate::bridge::events::ClientEvent;
 use crate::app::config::{self, SettingFile, store};
 use crate::app::connect::{SessionStartReason, begin_resume_session, start_new_session};
 use crate::app::events::push_system_message_with_severity;
@@ -441,7 +441,7 @@ fn handle_login_submit(app: &mut App, args: &[&str]) -> bool {
         outcome = "start",
     );
 
-    if crate::app::auth::has_credentials() {
+    if crate::app::auth::login::has_credentials() {
         push_system_message_with_severity(
             app,
             Some(SystemSeverity::Info),
@@ -478,7 +478,7 @@ fn handle_login_submit(app: &mut App, args: &[&str]) -> bool {
                     exit_code = ?status.code(),
                 );
                 if status.success() {
-                    if !crate::app::auth::has_credentials() {
+                    if !crate::app::auth::login::has_credentials() {
                         let _ = tx.send(ClientEvent::SlashCommandError(
                             "Login exited successfully but no credentials were saved. \
                              Try /login again or run `claude auth login` in another terminal."
@@ -523,7 +523,7 @@ fn handle_logout_submit(app: &mut App, args: &[&str]) -> bool {
         outcome = "start",
     );
 
-    if !crate::app::auth::has_credentials() {
+    if !crate::app::auth::login::has_credentials() {
         push_system_message_with_severity(
             app,
             Some(SystemSeverity::Info),
@@ -559,7 +559,7 @@ fn handle_logout_submit(app: &mut App, args: &[&str]) -> bool {
                     exit_code = ?status.code(),
                 );
                 if status.success() {
-                    if crate::app::auth::has_credentials() {
+                    if crate::app::auth::login::has_credentials() {
                         let _ = tx.send(ClientEvent::SlashCommandError(
                             "Logout exited successfully but credentials are still present. \
                              Try /logout again or run `claude auth logout` in another terminal."
@@ -878,7 +878,7 @@ fn build_docs_agents_markdown(app: &App) -> String {
     )
 }
 
-fn model_details(model: &crate::agent::model::AvailableModel) -> String {
+fn model_details(model: &crate::bridge::model::AvailableModel) -> String {
     let mut parts = Vec::new();
     parts.push(format!("ID `{}`", model.id));
     if let Some(description) = model.description.as_deref()

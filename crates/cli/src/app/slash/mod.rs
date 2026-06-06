@@ -15,9 +15,9 @@ mod navigation;
 
 use super::{
     App, AppStatus, ChatMessage, MessageBlock, MessageRole, SystemSeverity, TextBlock,
-    dialog::DialogState,
 };
-use crate::agent::model;
+use super::interaction::dialog::DialogState;
+use crate::bridge::model;
 use crate::app::events::push_system_message_with_severity;
 use std::rc::Rc;
 
@@ -108,7 +108,7 @@ fn push_user_message(app: &mut App, text: impl Into<String>) {
 fn require_connection(
     app: &mut App,
     not_connected_msg: &'static str,
-) -> Option<Rc<crate::agent::client::AgentConnection>> {
+) -> Option<Rc<crate::bridge::client::AgentConnection>> {
     let Some(conn) = app.conn.as_ref() else {
         push_system_message(app, not_connected_msg);
         return None;
@@ -120,7 +120,7 @@ fn require_active_session(
     app: &mut App,
     not_connected_msg: &'static str,
     no_session_msg: &'static str,
-) -> Option<(Rc<crate::agent::client::AgentConnection>, model::SessionId)> {
+) -> Option<(Rc<crate::bridge::client::AgentConnection>, model::SessionId)> {
     let conn = require_connection(app, not_connected_msg)?;
     let Some(session_id) = app.session_id.clone() else {
         push_system_message(app, no_session_msg);
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn opus_version_requires_trusted_project_for_mutation() {
         let mut app = App::test_default();
-        app.trust.status = crate::app::trust::TrustStatus::Untrusted;
+        app.trust.status = crate::app::auth::trust::TrustStatus::Untrusted;
 
         let consumed = try_handle_submit(&mut app, "/opus-version 4.7");
 
@@ -695,9 +695,9 @@ mod tests {
     fn model_argument_candidates_are_dynamic() {
         let mut app = App::test_default();
         app.available_models = vec![
-            crate::agent::model::AvailableModel::new("sonnet", "Claude Sonnet")
+            crate::bridge::model::AvailableModel::new("sonnet", "Claude Sonnet")
                 .description("Balanced coding model"),
-            crate::agent::model::AvailableModel::new("opus", "Claude Opus"),
+            crate::bridge::model::AvailableModel::new("opus", "Claude Opus"),
         ];
         let candidates = argument_candidates(&app, "/model", 0);
         assert!(candidates.iter().any(|c| c.insert_value == "sonnet"));
@@ -710,10 +710,10 @@ mod tests {
     fn model_argument_candidates_hide_sdk_default_option() {
         let mut app = App::test_default();
         app.available_models = vec![
-            crate::agent::model::AvailableModel::new("default", "Default")
+            crate::bridge::model::AvailableModel::new("default", "Default")
                 .description("Default (recommended)"),
-            crate::agent::model::AvailableModel::new("sonnet", "Claude Sonnet"),
-            crate::agent::model::AvailableModel::new("opus", "Claude Opus"),
+            crate::bridge::model::AvailableModel::new("sonnet", "Claude Sonnet"),
+            crate::bridge::model::AvailableModel::new("opus", "Claude Opus"),
         ];
 
         let candidates = argument_candidates(&app, "/model", 0);
@@ -733,7 +733,7 @@ mod tests {
             }
         });
         app.available_models = vec![
-            crate::agent::model::AvailableModel::new("opus", "Opus")
+            crate::bridge::model::AvailableModel::new("opus", "Opus")
                 .description("Opus 4.7 · Most capable for complex work"),
         ];
 
@@ -751,7 +751,7 @@ mod tests {
     fn model_argument_candidates_keep_sdk_opus_description_when_unpinned() {
         let mut app = App::test_default();
         app.available_models = vec![
-            crate::agent::model::AvailableModel::new("opus", "Opus")
+            crate::bridge::model::AvailableModel::new("opus", "Opus")
                 .description("Opus 4.7 · Most capable for complex work"),
         ];
 
@@ -794,7 +794,7 @@ mod tests {
     fn docs_commands_reuse_help_rows() {
         let mut app = App::test_default();
         app.available_commands =
-            vec![crate::agent::model::AvailableCommand::new("/help", "Open help")];
+            vec![crate::bridge::model::AvailableCommand::new("/help", "Open help")];
 
         let consumed = try_handle_submit(&mut app, "/docs commands");
 
@@ -1000,7 +1000,7 @@ mod tests {
             .run_until(async {
                 let mut app = App::test_default();
                 let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-                app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+                app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
 
                 let consumed = try_handle_submit(&mut app, "/resume abc-123");
                 assert!(consumed);
@@ -1019,7 +1019,7 @@ mod tests {
             .run_until(async {
                 let mut app = App::test_default();
                 let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-                app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+                app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
                 app.session_id = Some("sess-1".into());
                 app.mode = Some(super::super::ModeState {
                     current_mode_id: "code".to_owned(),
@@ -1042,9 +1042,9 @@ mod tests {
                 // Simulate mode-update ack arriving from bridge.
                 super::super::events::handle_client_event(
                     &mut app,
-                    crate::agent::events::ClientEvent::SessionUpdate(
-                        crate::agent::model::SessionUpdate::CurrentModeUpdate(
-                            crate::agent::model::CurrentModeUpdate::new("plan"),
+                    crate::bridge::events::ClientEvent::SessionUpdate(
+                        crate::bridge::model::SessionUpdate::CurrentModeUpdate(
+                            crate::bridge::model::CurrentModeUpdate::new("plan"),
                         ),
                     ),
                 );
@@ -1064,10 +1064,10 @@ mod tests {
             .run_until(async {
                 let mut app = App::test_default();
                 let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-                app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+                app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
                 app.session_id = Some("sess-1".into());
                 app.current_model = Some(
-                    crate::agent::model::CurrentModel::new("old-model", "old-model", "old-model")
+                    crate::bridge::model::CurrentModel::new("old-model", "old-model", "old-model")
                         .authoritative(true),
                 );
 
@@ -1086,10 +1086,10 @@ mod tests {
 
                 super::super::events::handle_client_event(
                     &mut app,
-                    crate::agent::events::ClientEvent::SessionUpdate(
-                        crate::agent::model::SessionUpdate::CurrentModelUpdate(
-                            crate::agent::model::CurrentModelUpdate::new(
-                                crate::agent::model::CurrentModel::new(
+                    crate::bridge::events::ClientEvent::SessionUpdate(
+                        crate::bridge::model::SessionUpdate::CurrentModelUpdate(
+                            crate::bridge::model::CurrentModelUpdate::new(
+                                crate::bridge::model::CurrentModel::new(
                                     "sonnet", "sonnet", "sonnet",
                                 )
                                 .authoritative(true),
@@ -1117,7 +1117,7 @@ mod tests {
             .run_until(async {
                 let mut app = App::test_default();
                 let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-                app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+                app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
 
                 let consumed = try_handle_submit(&mut app, "/new-session");
                 assert!(consumed);
@@ -1152,7 +1152,7 @@ mod tests {
     fn compact_with_active_session_sets_compacting_without_success_pending() {
         let mut app = App::test_default();
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         app.session_id = Some(model::SessionId::new("session-1"));
 
         let consumed = try_handle_submit(&mut app, "/compact");

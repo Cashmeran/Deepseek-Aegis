@@ -1,7 +1,7 @@
 // Copyright 2025 Simon Peter Rothgang
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::agent::model;
+use crate::bridge::model;
 use crate::ui::theme;
 use crate::ui::wrap::{StyledChunk, display_width, wrap_styled_chunks};
 use ratatui::style::{Color, Modifier, Style};

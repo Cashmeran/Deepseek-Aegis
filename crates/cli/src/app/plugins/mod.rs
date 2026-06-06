@@ -1,6 +1,6 @@
 mod cli;
 
-use crate::agent::events::ClientEvent;
+use crate::bridge::events::ClientEvent;
 use crate::app::App;
 use crate::app::config::{
     AddMarketplaceOverlayState, ConfigOverlayState, InstalledPluginActionKind,
@@ -315,7 +315,7 @@ pub(crate) fn request_inventory_refresh(app: &mut App) {
     tokio::task::spawn_local(async move {
         match cli::refresh_inventory(cwd_raw, cached_claude_path).await {
             Ok((snapshot, claude_path)) => {
-                let _ = event_tx.send(crate::agent::events::ClientEvent::PluginsInventoryUpdated {
+                let _ = event_tx.send(crate::bridge::events::ClientEvent::PluginsInventoryUpdated {
                     cwd_raw: cwd_context,
                     snapshot,
                     claude_path,
@@ -323,7 +323,7 @@ pub(crate) fn request_inventory_refresh(app: &mut App) {
             }
             Err(message) => {
                 let _ = event_tx.send(
-                    crate::agent::events::ClientEvent::PluginsInventoryRefreshFailed {
+                    crate::bridge::events::ClientEvent::PluginsInventoryRefreshFailed {
                         cwd_raw: cwd_context,
                         message,
                     },
@@ -902,12 +902,12 @@ fn start_runtime_reload(app: &mut App, success_message: String) {
     app.plugins.pending_runtime_reload_success_message = Some(success_message);
     app.config.last_error = None;
     app.config.status_message = Some("Reloading session plugins...".to_owned());
-    match crate::app::session_runtime::request_runtime_reload(app) {
-        crate::app::session_runtime::RuntimeReloadRequestOutcome::Requested => {}
-        crate::app::session_runtime::RuntimeReloadRequestOutcome::Unavailable => {
+    match crate::app::session::runtime::request_runtime_reload(app) {
+        crate::app::session::runtime::RuntimeReloadRequestOutcome::Requested => {}
+        crate::app::session::runtime::RuntimeReloadRequestOutcome::Unavailable => {
             apply_runtime_reload_success(app);
         }
-        crate::app::session_runtime::RuntimeReloadRequestOutcome::Failed => {
+        crate::app::session::runtime::RuntimeReloadRequestOutcome::Failed => {
             apply_runtime_reload_failure(app, "failed to request session runtime plugin reload");
         }
     }
@@ -1296,15 +1296,15 @@ pub(crate) const fn search_enabled(tab: PluginsViewTab) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::model;
-    use crate::agent::wire::BridgeCommand;
+    use crate::bridge::model;
+    use crate::bridge::wire::BridgeCommand;
 
     fn app_with_connection()
-    -> (crate::app::App, tokio::sync::mpsc::UnboundedReceiver<crate::agent::wire::CommandEnvelope>)
+    -> (crate::app::App, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::wire::CommandEnvelope>)
     {
         let mut app = crate::app::App::test_default();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(std::rc::Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(std::rc::Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         app.session_id = Some(model::SessionId::new("session-1"));
         (app, rx)
     }

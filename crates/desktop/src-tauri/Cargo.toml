@@ -20,6 +20,8 @@ tauri-build = { version = "2.3.1", features = [] }
 [dependencies]
 aegis-core = { path = "../../core" }
 aegis-tools = { path = "../../tools" }
+aegis-memory = { path = "../../memory" }
+aegis-code-graph = { path = "../../code-graph" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"

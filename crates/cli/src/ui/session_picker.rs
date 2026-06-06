@@ -41,14 +41,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         chunks[1],
     );
 
-    if crate::app::session_picker::startup_picker_is_loading(app) {
+    if crate::app::session::picker::startup_picker_is_loading(app) {
         frame.render_widget(
             Paragraph::new("Loading recent sessions...")
                 .style(Style::default().fg(theme::DIM))
                 .wrap(Wrap { trim: false }),
             chunks[2],
         );
-    } else if crate::app::session_picker::picker_session_count(app) == 0 {
+    } else if crate::app::session::picker::picker_session_count(app) == 0 {
         frame.render_widget(
             Paragraph::new("No recent sessions found for this directory.")
                 .style(Style::default().fg(theme::DIM))
@@ -68,7 +68,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 fn render_session_list(frame: &mut Frame, area: Rect, app: &mut App) {
     let lines_per_item = 2;
     let visible_count = usize::from((area.height / lines_per_item).max(1));
-    let session_count = crate::app::session_picker::picker_session_count(app);
+    let session_count = crate::app::session::picker::picker_session_count(app);
     let max_offset = session_count.saturating_sub(visible_count);
     app.session_picker.scroll_offset = app.session_picker.scroll_offset.min(max_offset);
     if app.session_picker.selected < app.session_picker.scroll_offset {
@@ -102,7 +102,7 @@ fn render_session_list(frame: &mut Frame, area: Rect, app: &mut App) {
 }
 
 fn footer_text(app: &App) -> &'static str {
-    if crate::app::session_picker::startup_picker_is_loading(app) {
+    if crate::app::session::picker::startup_picker_is_loading(app) {
         "Preparing session picker | Ctrl+Q to quit"
     } else {
         "Enter to resume | Esc to start new session | Ctrl+Q to quit"

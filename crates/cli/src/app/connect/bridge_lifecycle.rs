@@ -4,10 +4,10 @@
 //! Bridge process lifecycle: spawning, initialization handshake, event loop,
 //! and connection slot management.
 
-use crate::agent::bridge::BridgeLauncher;
-use crate::agent::client::{AgentConnection, BridgeClient};
-use crate::agent::events::ClientEvent;
-use crate::agent::wire::{BridgeCommand, BridgeEvent, CommandEnvelope};
+use crate::bridge::bridge::BridgeLauncher;
+use crate::bridge::client::{AgentConnection, BridgeClient};
+use crate::bridge::events::ClientEvent;
+use crate::bridge::wire::{BridgeCommand, BridgeEvent, CommandEnvelope};
 use crate::error::AppError;
 use std::rc::Rc;
 use std::time::Duration;
@@ -84,7 +84,7 @@ pub(super) async fn run_connection_task(
 }
 
 fn resolve_launcher(params: &StartConnectionParams) -> Option<BridgeLauncher> {
-    match crate::agent::bridge::resolve_bridge_launcher(params.bridge_script.as_deref()) {
+    match crate::bridge::bridge::resolve_bridge_launcher(params.bridge_script.as_deref()) {
         Ok(launcher) => Some(launcher),
         Err(err) => {
             tracing::error!(

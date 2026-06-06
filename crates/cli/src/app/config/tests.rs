@@ -1,6 +1,6 @@
 use super::*;
-use crate::agent::model::AvailableModel;
-use crate::agent::wire::BridgeCommand;
+use crate::bridge::model::AvailableModel;
+use crate::bridge::wire::BridgeCommand;
 use crate::app::AppStatus;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use serde_json::Value;
@@ -15,7 +15,7 @@ fn open_settings_app_in_dir(dir: &TempDir) -> App {
         dir.path().join(".claude.json"),
         format!(
             "{{\n  \"projects\": {{\n    \"{}\": {{ \"hasTrustDialogAccepted\": true }}\n  }}\n}}\n",
-            crate::app::trust::store::normalize_project_key(dir.path())
+            crate::app::auth::trust::store::normalize_project_key(dir.path())
         ),
     )
     .expect("write trust prefs");
@@ -38,11 +38,11 @@ fn select_setting(app: &mut App, setting_id: SettingId) {
 }
 
 fn app_with_status_connection()
--> (App, tokio::sync::mpsc::UnboundedReceiver<crate::agent::wire::CommandEnvelope>) {
+-> (App, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::wire::CommandEnvelope>) {
     let mut app = App::test_default();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+    app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
     app.config.active_tab = ConfigTab::Status;
     app.recent_sessions = vec![crate::app::RecentSessionInfo {
         session_id: "session-1".to_owned(),
@@ -116,14 +116,14 @@ fn initialize_shared_state_reconciles_trust_from_preferences() {
     let mut app = App::test_default();
     app.settings_home_override = Some(dir.path().to_path_buf());
     app.cwd_raw = dir.path().join("project").to_string_lossy().to_string();
-    app.trust.status = crate::app::trust::TrustStatus::Trusted;
+    app.trust.status = crate::app::auth::trust::TrustStatus::Trusted;
 
     initialize_shared_state(&mut app).expect("initialize");
 
-    assert_eq!(app.trust.status, crate::app::trust::TrustStatus::Untrusted);
+    assert_eq!(app.trust.status, crate::app::auth::trust::TrustStatus::Untrusted);
     assert_eq!(
         app.trust.project_key,
-        crate::app::trust::store::normalize_project_key(std::path::Path::new(&app.cwd_raw))
+        crate::app::auth::trust::store::normalize_project_key(std::path::Path::new(&app.cwd_raw))
     );
 }
 
@@ -149,7 +149,7 @@ fn reopen_reload_picks_up_external_settings_changes() {
         dir.path().join(".claude.json"),
         format!(
             "{{\n  \"projects\": {{\n    \"{}\": {{ \"hasTrustDialogAccepted\": true }}\n  }}\n}}\n",
-            crate::app::trust::store::normalize_project_key(dir.path())
+            crate::app::auth::trust::store::normalize_project_key(dir.path())
         ),
     )
     .expect("write trust prefs");
@@ -235,7 +235,7 @@ fn open_rejects_untrusted_projects() {
     let mut app = App::test_default();
     app.settings_home_override = Some(dir.path().to_path_buf());
     app.cwd_raw = dir.path().to_string_lossy().to_string();
-    app.trust.status = crate::app::trust::TrustStatus::Untrusted;
+    app.trust.status = crate::app::auth::trust::TrustStatus::Untrusted;
 
     let err = open(&mut app).expect_err("open should be blocked");
 
@@ -1269,13 +1269,13 @@ fn enter_closes_settings_without_editing_selected_row() {
 fn mcp_enter_opens_details_overlay_instead_of_closing_config() {
     let (_dir, mut app) = open_settings_test_app();
     app.config.active_tab = ConfigTab::Mcp;
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
-    app.mcp.servers = vec![crate::agent::types::McpServerStatus {
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
+    app.mcp.servers = vec![crate::bridge::types::McpServerStatus {
         name: "filesystem".to_owned(),
-        status: crate::agent::types::McpServerConnectionStatus::Connected,
+        status: crate::bridge::types::McpServerConnectionStatus::Connected,
         server_info: None,
         error: None,
-        config: Some(crate::agent::types::McpServerStatusConfig::Stdio {
+        config: Some(crate::bridge::types::McpServerStatusConfig::Stdio {
             command: "npx".to_owned(),
             args: vec!["@modelcontextprotocol/server-filesystem".to_owned()],
             env: BTreeMap::new(),
@@ -1312,12 +1312,12 @@ fn mcp_details_overlay_enter_closes_overlay() {
 fn mcp_tab_refresh_key_requests_snapshot() {
     let (_dir, mut app) = open_settings_test_app();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+    app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
     app.config.active_tab = ConfigTab::Mcp;
-    app.mcp.servers.push(crate::agent::types::McpServerStatus {
+    app.mcp.servers.push(crate::bridge::types::McpServerStatus {
         name: "stale".to_owned(),
-        status: crate::agent::types::McpServerConnectionStatus::NeedsAuth,
+        status: crate::bridge::types::McpServerConnectionStatus::NeedsAuth,
         server_info: None,
         error: None,
         config: None,
@@ -1345,8 +1345,8 @@ fn mcp_tab_refresh_key_requests_snapshot() {
 fn request_mcp_snapshot_sends_outside_mcp_tab() {
     let (_dir, mut app) = open_settings_test_app();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+    app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
     app.config.active_tab = ConfigTab::Status;
 
     super::mcp::request_mcp_snapshot(&mut app);
@@ -1363,11 +1363,11 @@ fn request_mcp_snapshot_sends_outside_mcp_tab() {
 fn refresh_mcp_snapshot_clears_existing_servers_before_request() {
     let (_dir, mut app) = open_settings_test_app();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
-    app.mcp.servers.push(crate::agent::types::McpServerStatus {
+    app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
+    app.mcp.servers.push(crate::bridge::types::McpServerStatus {
         name: "stale".to_owned(),
-        status: crate::agent::types::McpServerConnectionStatus::Connected,
+        status: crate::bridge::types::McpServerConnectionStatus::Connected,
         server_info: None,
         error: None,
         config: None,
@@ -1390,8 +1390,8 @@ fn refresh_mcp_snapshot_clears_existing_servers_before_request() {
 fn refresh_mcp_snapshot_if_needed_skips_outside_mcp_tab() {
     let (_dir, mut app) = open_settings_test_app();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
-    app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+    app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
+    app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
     app.config.active_tab = ConfigTab::Status;
 
     super::mcp::refresh_mcp_snapshot_if_needed(&mut app);
@@ -1402,14 +1402,14 @@ fn refresh_mcp_snapshot_if_needed_skips_outside_mcp_tab() {
 
 #[test]
 fn claudeai_proxy_server_shows_disabled_authenticate_action() {
-    let server = crate::agent::types::McpServerStatus {
+    let server = crate::bridge::types::McpServerStatus {
         name: "claude.ai Google Calendar".to_owned(),
-        status: crate::agent::types::McpServerConnectionStatus::NeedsAuth,
+        status: crate::bridge::types::McpServerConnectionStatus::NeedsAuth,
         server_info: None,
         error: Some(
             "MCP server requires authentication but no OAuth token is configured.".to_owned(),
         ),
-        config: Some(crate::agent::types::McpServerStatusConfig::ClaudeaiProxy {
+        config: Some(crate::bridge::types::McpServerStatusConfig::ClaudeaiProxy {
             url: "https://mcp-proxy.anthropic.com/v1/mcp/server".to_owned(),
             id: "mcpsrv_test".to_owned(),
         }),

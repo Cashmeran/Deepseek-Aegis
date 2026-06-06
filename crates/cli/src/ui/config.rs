@@ -900,7 +900,7 @@ mod tests {
         SETTINGS_LIMITATION_HINT, model_overlay_lines, model_overlay_scroll,
         model_overlay_title_line, model_overlay_title_text,
     };
-    use crate::agent::model::{AvailableModel, EffortLevel};
+    use crate::bridge::model::{AvailableModel, EffortLevel};
     use crate::app::App;
     use crate::app::config::{
         ConfigOverlayState, LanguageOverlayState, ModelAndEffortOverlayState, OutputStyle,
@@ -1926,24 +1926,24 @@ mod tests {
                 selected_index: 0,
             },
         ));
-        app.mcp.servers = vec![crate::agent::types::McpServerStatus {
+        app.mcp.servers = vec![crate::bridge::types::McpServerStatus {
             name: "filesystem".to_owned(),
-            status: crate::agent::types::McpServerConnectionStatus::Connected,
-            server_info: Some(crate::agent::types::McpServerInfo {
+            status: crate::bridge::types::McpServerConnectionStatus::Connected,
+            server_info: Some(crate::bridge::types::McpServerInfo {
                 name: "Filesystem".to_owned(),
                 version: "1.2.3".to_owned(),
             }),
             error: None,
-            config: Some(crate::agent::types::McpServerStatusConfig::Stdio {
+            config: Some(crate::bridge::types::McpServerStatusConfig::Stdio {
                 command: "npx".to_owned(),
                 args: vec!["@modelcontextprotocol/server-filesystem".to_owned()],
                 env: BTreeMap::new(),
             }),
             scope: Some("project".to_owned()),
-            tools: vec![crate::agent::types::McpTool {
+            tools: vec![crate::bridge::types::McpTool {
                 name: "read_file".to_owned(),
                 description: Some("Read a file".to_owned()),
-                annotations: Some(crate::agent::types::McpToolAnnotations {
+                annotations: Some(crate::bridge::types::McpToolAnnotations {
                     read_only: Some(true),
                     destructive: Some(false),
                     open_world: Some(false),
@@ -1983,7 +1983,7 @@ mod tests {
         let mut app = App::test_default();
         app.surface_mode = crate::app::SurfaceMode::Fullscreen(crate::app::FullscreenView::Config);
         app.config.active_tab = crate::app::ConfigTab::Status;
-        app.session_id = Some(crate::agent::model::SessionId::new("session-1"));
+        app.session_id = Some(crate::bridge::model::SessionId::new("session-1"));
 
         terminal
             .draw(|frame| {

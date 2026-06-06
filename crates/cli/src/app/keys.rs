@@ -5,7 +5,7 @@ use super::paste_burst::CharAction;
 use super::{App, AppStatus, CancelOrigin, FocusOwner, InvalidationLevel, ModeInfo, ModeState};
 #[cfg(not(test))]
 use crate::app::SystemSeverity;
-use crate::app::inline_interactions::{
+use crate::app::interaction::inline::{
     clear_inline_interaction_focus, focus_next_inline_interaction,
     normalize_pending_interaction_queue,
 };
@@ -14,7 +14,10 @@ use crate::app::keymap::{
     TerminalAction,
 };
 use crate::app::state::AutocompleteKind;
-use crate::app::{mention, permissions, questions, slash, subagent};
+use crate::app::{mention, slash};
+use crate::app::auth::permissions;
+use crate::app::interaction::questions;
+use crate::app::tools::subagent;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::rc::Rc;
 use std::time::Instant;
@@ -604,7 +607,7 @@ fn handle_clipboard_paste_key(app: &mut App, key: KeyEvent) -> bool {
 
         // Try reading an image from the clipboard first.
         if let Ok(img_data) = clipboard.get_image() {
-            match super::clipboard_image::encode_clipboard_image(img_data) {
+            match super::tools::clipboard_image::encode_clipboard_image(img_data) {
                 Ok(attachment) => {
                     app.pending_images.push(attachment);
                     // Insert badge text at the cursor position so the user (and
@@ -986,7 +989,7 @@ mod tests {
                     secondary: None,
                 },
             ],
-            dialog: crate::app::dialog::DialogState::default(),
+            dialog: crate::app::interaction::dialog::DialogState::default(),
         });
         app.claim_focus_target(FocusTarget::Mention);
 

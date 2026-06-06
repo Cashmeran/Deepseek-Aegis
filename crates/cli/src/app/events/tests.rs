@@ -3,10 +3,10 @@
     // =====
 
     use super::*;
-    use crate::agent::error_handling::TurnErrorClass;
-    use crate::agent::events::ClientEvent;
-    use crate::agent::events::ServiceStatusSeverity;
-    use crate::agent::events::TerminalProcess;
+    use crate::bridge::error_handling::TurnErrorClass;
+    use crate::bridge::events::ClientEvent;
+    use crate::bridge::events::ServiceStatusSeverity;
+    use crate::bridge::events::TerminalProcess;
     use crate::app::keymap::{
         KeyAction, KeyBinding, KeyBindingSource, KeyContext, KeySpec, ResolvedKeymap,
         TerminalAction,
@@ -570,15 +570,15 @@
     }
 
     fn app_with_bridge_connection()
-    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::agent::wire::CommandEnvelope>) {
+    -> (App, tokio::sync::mpsc::UnboundedReceiver<crate::bridge::wire::CommandEnvelope>) {
         let mut app = make_test_app();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         (app, rx)
     }
 
-    fn listed_session(id: &str, title: &str) -> crate::agent::types::SessionListEntry {
-        crate::agent::types::SessionListEntry {
+    fn listed_session(id: &str, title: &str) -> crate::bridge::types::SessionListEntry {
+        crate::bridge::types::SessionListEntry {
             session_id: id.to_owned(),
             summary: title.to_owned(),
             last_modified_ms: 1,
@@ -1154,9 +1154,9 @@
     fn connected_requests_mcp_snapshot_even_outside_mcp_tab() {
         let (mut app, mut rx) = app_with_bridge_connection();
         app.config.active_tab = crate::app::config::ConfigTab::Status;
-        app.mcp.servers.push(crate::agent::types::McpServerStatus {
+        app.mcp.servers.push(crate::bridge::types::McpServerStatus {
             name: "supabase".into(),
-            status: crate::agent::types::McpServerConnectionStatus::Connected,
+            status: crate::bridge::types::McpServerConnectionStatus::Connected,
             server_info: None,
             error: None,
             config: None,
@@ -1169,7 +1169,7 @@
         let envelope = rx.try_recv().expect("mcp snapshot command");
         assert_eq!(
             envelope.command,
-            crate::agent::wire::BridgeCommand::GetMcpSnapshot {
+            crate::bridge::wire::BridgeCommand::GetMcpSnapshot {
                 session_id: "test-session".to_owned(),
             }
         );
@@ -1210,7 +1210,7 @@
     #[test]
     fn connected_reconciles_trust_for_new_cwd() {
         let mut app = make_test_app();
-        app.trust.status = crate::app::trust::TrustStatus::Trusted;
+        app.trust.status = crate::app::auth::trust::TrustStatus::Trusted;
         app.config.committed_preferences_document = serde_json::json!({
             "projects": {}
         });
@@ -1227,10 +1227,10 @@
             },
         );
 
-        assert_eq!(app.trust.status, crate::app::trust::TrustStatus::Untrusted);
+        assert_eq!(app.trust.status, crate::app::auth::trust::TrustStatus::Untrusted);
         assert_eq!(
             app.trust.project_key,
-            crate::app::trust::store::normalize_project_key(std::path::Path::new("/untrusted"))
+            crate::app::auth::trust::store::normalize_project_key(std::path::Path::new("/untrusted"))
         );
     }
 
@@ -1303,7 +1303,7 @@
             seven_day_sonnet: None,
             extra_usage: None,
         });
-        app.account_info = Some(crate::agent::types::AccountInfo {
+        app.account_info = Some(crate::bridge::types::AccountInfo {
             email: Some("old@example.com".into()),
             organization: None,
             subscription_type: None,
@@ -1465,7 +1465,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "test-session".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: None,
                     organization: None,
                     subscription_type: Some("Claude Pro".into()),
@@ -1528,9 +1528,9 @@
             active_form: String::new(),
         });
         app.mention = Some(mention::MentionState::new(0, 0, String::new(), Vec::new()));
-        app.mcp.servers.push(crate::agent::types::McpServerStatus {
+        app.mcp.servers.push(crate::bridge::types::McpServerStatus {
             name: "supabase".into(),
-            status: crate::agent::types::McpServerConnectionStatus::Connected,
+            status: crate::bridge::types::McpServerConnectionStatus::Connected,
             server_info: None,
             error: None,
             config: None,
@@ -1580,9 +1580,9 @@
     fn session_replaced_requests_mcp_snapshot_even_outside_mcp_tab() {
         let (mut app, mut rx) = app_with_bridge_connection();
         app.config.active_tab = crate::app::config::ConfigTab::Status;
-        app.mcp.servers.push(crate::agent::types::McpServerStatus {
+        app.mcp.servers.push(crate::bridge::types::McpServerStatus {
             name: "supabase".into(),
-            status: crate::agent::types::McpServerConnectionStatus::Connected,
+            status: crate::bridge::types::McpServerConnectionStatus::Connected,
             server_info: None,
             error: None,
             config: None,
@@ -1605,7 +1605,7 @@
         let envelope = rx.try_recv().expect("mcp snapshot command");
         assert_eq!(
             envelope.command,
-            crate::agent::wire::BridgeCommand::GetMcpSnapshot {
+            crate::bridge::wire::BridgeCommand::GetMcpSnapshot {
                 session_id: "replacement".to_owned(),
             }
         );
@@ -1622,14 +1622,14 @@
         let mcp = rx.try_recv().expect("mcp snapshot command");
         assert_eq!(
             mcp.command,
-            crate::agent::wire::BridgeCommand::GetMcpSnapshot {
+            crate::bridge::wire::BridgeCommand::GetMcpSnapshot {
                 session_id: "test-session".to_owned(),
             }
         );
         let status = rx.try_recv().expect("status snapshot command");
         assert_eq!(
             status.command,
-            crate::agent::wire::BridgeCommand::GetStatusSnapshot {
+            crate::bridge::wire::BridgeCommand::GetStatusSnapshot {
                 session_id: "test-session".to_owned(),
             }
         );
@@ -1659,7 +1659,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "old-session".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: Some("old@example.com".into()),
                     organization: None,
                     subscription_type: None,
@@ -1688,7 +1688,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "session-1".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: None,
                     organization: None,
                     subscription_type: Some("Claude Max".into()),
@@ -1722,7 +1722,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "session-1".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: None,
                     organization: None,
                     subscription_type: Some("Claude Max".into()),
@@ -1744,9 +1744,9 @@
     fn stale_mcp_snapshot_for_old_session_is_ignored() {
         let mut app = make_test_app();
         app.session_id = Some(model::SessionId::new("current-session"));
-        app.mcp.servers.push(crate::agent::types::McpServerStatus {
+        app.mcp.servers.push(crate::bridge::types::McpServerStatus {
             name: "current".into(),
-            status: crate::agent::types::McpServerConnectionStatus::Connected,
+            status: crate::bridge::types::McpServerConnectionStatus::Connected,
             server_info: None,
             error: None,
             config: None,
@@ -1758,9 +1758,9 @@
             &mut app,
             ClientEvent::McpSnapshotReceived {
                 session_id: "old-session".into(),
-                servers: vec![crate::agent::types::McpServerStatus {
+                servers: vec![crate::bridge::types::McpServerStatus {
                     name: "stale".into(),
-                    status: crate::agent::types::McpServerConnectionStatus::Connected,
+                    status: crate::bridge::types::McpServerConnectionStatus::Connected,
                     server_info: None,
                     error: None,
                     config: None,
@@ -1995,7 +1995,7 @@
         handle_client_event(
             &mut app,
             ClientEvent::SessionsListed {
-                sessions: vec![crate::agent::types::SessionListEntry {
+                sessions: vec![crate::bridge::types::SessionListEntry {
                     session_id: "session-1".to_owned(),
                     summary: "Renamed session".to_owned(),
                     last_modified_ms: 1,
@@ -2050,7 +2050,7 @@
         handle_client_event(
             &mut app,
             ClientEvent::McpOperationError {
-                error: crate::agent::types::McpOperationError {
+                error: crate::bridge::types::McpOperationError {
                     server_name: Some("claude.ai Google Calendar".into()),
                     operation: "authenticate".into(),
                     message: "Server type \"claudeai-proxy\" does not support OAuth authentication"
@@ -2083,7 +2083,7 @@
         handle_client_event(
             &mut app,
             ClientEvent::SessionsListed {
-                sessions: vec![crate::agent::types::SessionListEntry {
+                sessions: vec![crate::bridge::types::SessionListEntry {
                     session_id: "session-1".to_owned(),
                     summary: "Generated session".to_owned(),
                     last_modified_ms: 1,
@@ -2118,7 +2118,7 @@
         assert!(!app.startup_session_picker_resolved);
 
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
         handle_client_event(&mut app, connected_event("claude-updated"));
 
         assert_eq!(app.surface_mode, SurfaceMode::Fullscreen(FullscreenView::SessionPicker));
@@ -2130,7 +2130,7 @@
         let mut app = make_test_app();
         app.startup_session_picker_requested = true;
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        app.conn = Some(Rc::new(crate::agent::client::AgentConnection::new(tx)));
+        app.conn = Some(Rc::new(crate::bridge::client::AgentConnection::new(tx)));
 
         handle_client_event(&mut app, connected_event("claude-updated"));
         assert_eq!(app.surface_mode, SurfaceMode::Chat);
@@ -2310,7 +2310,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "active-456".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: None,
                     organization: None,
                     subscription_type: Some("Claude Max".into()),
@@ -2361,7 +2361,7 @@
             &mut app,
             ClientEvent::StatusSnapshotReceived {
                 session_id: "startup-resume".into(),
-                account: crate::agent::types::AccountInfo {
+                account: crate::bridge::types::AccountInfo {
                     email: None,
                     organization: None,
                     subscription_type: Some("Claude Max".into()),
@@ -2407,7 +2407,7 @@
         let envelope = rx.try_recv().expect("prompt command should be sent");
         assert!(matches!(
             envelope.command,
-            crate::agent::wire::BridgeCommand::Prompt { session_id, .. }
+            crate::bridge::wire::BridgeCommand::Prompt { session_id, .. }
                 if session_id == "startup-resume"
         ));
         assert_eq!(app.pending_cancel_origin, None);
@@ -4086,7 +4086,7 @@
                 primary: "/config".into(),
                 secondary: Some("Open settings".into()),
             }],
-            dialog: crate::app::dialog::DialogState::default(),
+            dialog: crate::app::interaction::dialog::DialogState::default(),
         });
         app.claim_focus_target(FocusTarget::Mention);
         assert_eq!(app.focus_owner(), FocusOwner::Mention);
@@ -4183,7 +4183,7 @@
         let envelope = rx.try_recv().expect("second Esc should send turn cancel");
         assert!(matches!(
             envelope.command,
-            crate::agent::wire::BridgeCommand::CancelTurn { session_id }
+            crate::bridge::wire::BridgeCommand::CancelTurn { session_id }
                 if session_id == "session-1"
         ));
     }
@@ -4228,7 +4228,7 @@
         app.input.set_text("draft");
         app.pending_submit = Some(app.input.snapshot());
         app.pending_paste_text = "queued paste".to_owned();
-        app.pending_images.push(crate::app::clipboard_image::ImageAttachment {
+        app.pending_images.push(crate::app::tools::clipboard_image::ImageAttachment {
             data: "image-data".to_owned(),
             mime_type: "image/png".to_owned(),
         });
@@ -4369,7 +4369,7 @@
                 primary: "/config".into(),
                 secondary: Some("Open settings".into()),
             }],
-            dialog: crate::app::dialog::DialogState::default(),
+            dialog: crate::app::interaction::dialog::DialogState::default(),
         });
         app.claim_focus_target(FocusTarget::Mention);
 
@@ -4471,9 +4471,9 @@
         app.input.set_text("seed");
         app.cwd_raw = dir.path().join("project").to_string_lossy().to_string();
         app.config.preferences_path = Some(path);
-        app.trust.status = crate::app::trust::TrustStatus::Untrusted;
+        app.trust.status = crate::app::auth::trust::TrustStatus::Untrusted;
         app.trust.project_key =
-            crate::app::trust::store::normalize_project_key(std::path::Path::new(&app.cwd_raw));
+            crate::app::auth::trust::store::normalize_project_key(std::path::Path::new(&app.cwd_raw));
 
         handle_terminal_event(
             &mut app,
@@ -4644,7 +4644,7 @@
 
     #[test]
     fn internal_error_detection_accepts_xml_payload() {
-        use crate::agent::error_handling::looks_like_internal_error;
+        use crate::bridge::error_handling::looks_like_internal_error;
         let payload =
             "<error><code>-32603</code><message>Adapter process crashed</message></error>";
         assert!(looks_like_internal_error(payload));
@@ -4652,14 +4652,14 @@
 
     #[test]
     fn internal_error_detection_rejects_plain_bash_failure() {
-        use crate::agent::error_handling::looks_like_internal_error;
+        use crate::bridge::error_handling::looks_like_internal_error;
         let payload = "bash: unknown_command: command not found";
         assert!(!looks_like_internal_error(payload));
     }
 
     #[test]
     fn summarize_internal_error_prefers_xml_message() {
-        use crate::agent::error_handling::summarize_internal_error;
+        use crate::bridge::error_handling::summarize_internal_error;
         let payload =
             "<error><code>-32603</code><message>Adapter process crashed</message></error>";
         assert_eq!(summarize_internal_error(payload), "Adapter process crashed");
@@ -4667,21 +4667,21 @@
 
     #[test]
     fn summarize_internal_error_reads_json_rpc_message() {
-        use crate::agent::error_handling::summarize_internal_error;
+        use crate::bridge::error_handling::summarize_internal_error;
         let payload = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"internal rpc fault"}}"#;
         assert_eq!(summarize_internal_error(payload), "internal rpc fault");
     }
 
     #[test]
     fn internal_error_detection_accepts_permission_zod_payload() {
-        use crate::agent::error_handling::looks_like_internal_error;
+        use crate::bridge::error_handling::looks_like_internal_error;
         let payload = "Tool permission request failed: ZodError: [{\"message\":\"Invalid input\"}]";
         assert!(looks_like_internal_error(payload));
     }
 
     #[test]
     fn summarize_internal_error_prefers_permission_failure_summary() {
-        use crate::agent::error_handling::summarize_internal_error;
+        use crate::bridge::error_handling::summarize_internal_error;
         let payload = "Tool permission request failed: ZodError: [{\"message\":\"Invalid input: expected record, received undefined\"}]";
         assert_eq!(
             summarize_internal_error(payload),

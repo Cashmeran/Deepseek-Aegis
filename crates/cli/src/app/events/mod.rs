@@ -16,13 +16,13 @@ use super::{
     App, AppStatus, ChatMessage, FullscreenView, InvalidationLevel, MessageBlock, MessageRole,
     PendingCommandAck, SurfaceMode, SystemSeverity, TerminalSizeChange, TextBlock,
 };
-use crate::agent::model;
+use crate::bridge::model;
 #[cfg(all(test, target_os = "macos"))]
 use crate::app::keys::CMD_MOD;
 #[cfg(test)]
 use crate::app::keys::WORD_NAV_MOD;
 use crate::app::keys::{KeyOutcome, RuntimeCommand, reclaim_input_from_inline_prompt_if_needed};
-use crate::app::todos::apply_plan_todos;
+use crate::app::tools::todos::apply_plan_todos;
 #[cfg(test)]
 use crossterm::event::KeyEvent;
 use crossterm::event::{Event, KeyEventKind};
@@ -182,11 +182,11 @@ fn dispatch_key_by_view(app: &mut App, key: crossterm::event::KeyEvent) -> Termi
             TerminalEventOutcome::handled(true)
         }
         SurfaceMode::Fullscreen(FullscreenView::Trusted) => {
-            super::trust::handle_key(app, key);
+            super::auth::trust::handle_key(app, key);
             TerminalEventOutcome::handled(true)
         }
         SurfaceMode::Fullscreen(FullscreenView::SessionPicker) => {
-            super::session_picker::handle_key(app, key);
+            super::session::picker::handle_key(app, key);
             TerminalEventOutcome::handled(true)
         }
     }
@@ -297,7 +297,7 @@ fn handle_session_update(app: &mut App, update: model::SessionUpdate) {
             );
             app.available_agents = agents.available_agents;
             if app.subagent.is_some() {
-                super::subagent::update_query(app);
+                super::tools::subagent::update_query(app);
             }
         }
         model::SessionUpdate::ModeStateUpdate(mode) => {
@@ -398,7 +398,7 @@ fn handle_session_update(app: &mut App, update: model::SessionUpdate) {
                 clear_compaction_state(app, true);
             }
             if was_compacting && matches!(status, model::SessionStatus::Idle) {
-                crate::app::session_runtime::request_context_usage_refresh(app);
+                crate::app::session::runtime::request_context_usage_refresh(app);
             }
             tracing::debug!(
                 target: crate::logging::targets::APP_SESSION,

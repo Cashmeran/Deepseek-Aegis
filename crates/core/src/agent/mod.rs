@@ -3,6 +3,7 @@ pub mod context;
 pub mod conversation;
 pub mod harness;
 pub mod healing;
+pub mod helpers;
 pub mod loop_;
 pub mod output;
 pub mod subagent;

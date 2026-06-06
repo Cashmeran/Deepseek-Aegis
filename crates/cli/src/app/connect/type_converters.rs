@@ -3,8 +3,8 @@
 
 //! Type conversion functions: bridge wire types -> app model types.
 
-use crate::agent::model;
-use crate::agent::types;
+use crate::bridge::model;
+use crate::bridge::types;
 use crate::app::{ModeInfo, ModeState};
 
 pub(super) fn map_rate_limit_status(status: types::RateLimitStatus) -> model::RateLimitStatus {
@@ -366,7 +366,7 @@ pub(super) fn convert_content_block(content: types::ContentBlock) -> Option<mode
         types::ContentBlock::Image { mime_type, uri: _, data } => {
             let mime = mime_type.unwrap_or_else(|| "image/png".to_owned());
             let image_data = data.unwrap_or_default();
-            if !crate::app::clipboard_image::is_supported_image_type(&mime) {
+            if !crate::app::tools::clipboard_image::is_supported_image_type(&mime) {
                 tracing::warn!(mime_type = %mime, "convert_content_block: skipping unsupported image type");
                 return None;
             }
@@ -639,7 +639,7 @@ mod tests {
         convert_tool_call, convert_tool_call_update_fields, map_available_models,
         map_permission_request, map_question_request, map_session_update,
     };
-    use crate::agent::{model, types};
+    use crate::bridge::{model, types};
 
     #[test]
     fn map_available_models_preserves_optional_fast_and_auto_metadata() {

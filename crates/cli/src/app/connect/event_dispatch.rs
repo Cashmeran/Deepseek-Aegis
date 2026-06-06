@@ -4,11 +4,11 @@
 //! Bridge event dispatch: routes incoming `BridgeEvent` envelopes to appropriate
 //! `ClientEvent` messages, and handles permission request/response forwarding.
 
-use crate::agent::error_handling::parse_turn_error_class;
-use crate::agent::events::ClientEvent;
-use crate::agent::model;
-use crate::agent::types;
-use crate::agent::wire::{BridgeCommand, CommandEnvelope, EventEnvelope};
+use crate::bridge::error_handling::parse_turn_error_class;
+use crate::bridge::events::ClientEvent;
+use crate::bridge::model;
+use crate::bridge::types;
+use crate::bridge::wire::{BridgeCommand, CommandEnvelope, EventEnvelope};
 use crate::error::AppError;
 use tokio::sync::mpsc;
 
@@ -36,7 +36,7 @@ pub(super) fn handle_bridge_event(
     envelope: EventEnvelope,
 ) {
     match envelope.event {
-        crate::agent::wire::BridgeEvent::Connected {
+        crate::bridge::wire::BridgeEvent::Connected {
             session_id,
             cwd,
             current_model,
@@ -57,27 +57,27 @@ pub(super) fn handle_bridge_event(
                 },
             );
         }
-        crate::agent::wire::BridgeEvent::AuthRequired { method_name, method_description } => {
+        crate::bridge::wire::BridgeEvent::AuthRequired { method_name, method_description } => {
             let _ = event_tx.send(ClientEvent::AuthRequired { method_name, method_description });
         }
-        crate::agent::wire::BridgeEvent::ConnectionFailed { message } => {
+        crate::bridge::wire::BridgeEvent::ConnectionFailed { message } => {
             emit_connection_failed(event_tx, message, AppError::ConnectionFailed);
         }
-        crate::agent::wire::BridgeEvent::SessionUpdate { update, .. } => {
+        crate::bridge::wire::BridgeEvent::SessionUpdate { update, .. } => {
             if let Some(update) = map_session_update(update) {
                 let _ = event_tx.send(ClientEvent::SessionUpdate(update));
             }
         }
-        crate::agent::wire::BridgeEvent::PermissionRequest { session_id, request } => {
+        crate::bridge::wire::BridgeEvent::PermissionRequest { session_id, request } => {
             handle_permission_request_event(event_tx, cmd_tx, session_id, request);
         }
-        crate::agent::wire::BridgeEvent::QuestionRequest { session_id, request } => {
+        crate::bridge::wire::BridgeEvent::QuestionRequest { session_id, request } => {
             handle_question_request_event(event_tx, cmd_tx, session_id, request);
         }
-        crate::agent::wire::BridgeEvent::ElicitationRequest { session_id, request } => {
+        crate::bridge::wire::BridgeEvent::ElicitationRequest { session_id, request } => {
             handle_elicitation_request_event(event_tx, &session_id, request);
         }
-        crate::agent::wire::BridgeEvent::ElicitationComplete {
+        crate::bridge::wire::BridgeEvent::ElicitationComplete {
             elicitation_id,
             server_name,
             ..
@@ -85,16 +85,16 @@ pub(super) fn handle_bridge_event(
             let _ =
                 event_tx.send(ClientEvent::McpElicitationCompleted { elicitation_id, server_name });
         }
-        crate::agent::wire::BridgeEvent::McpAuthRedirect { redirect, .. } => {
+        crate::bridge::wire::BridgeEvent::McpAuthRedirect { redirect, .. } => {
             let _ = event_tx.send(ClientEvent::McpAuthRedirect { redirect });
         }
-        crate::agent::wire::BridgeEvent::McpOperationError { error, .. } => {
+        crate::bridge::wire::BridgeEvent::McpOperationError { error, .. } => {
             let _ = event_tx.send(ClientEvent::McpOperationError { error });
         }
-        crate::agent::wire::BridgeEvent::TurnComplete { terminal_reason, .. } => {
+        crate::bridge::wire::BridgeEvent::TurnComplete { terminal_reason, .. } => {
             let _ = event_tx.send(ClientEvent::TurnComplete { terminal_reason });
         }
-        crate::agent::wire::BridgeEvent::TurnError {
+        crate::bridge::wire::BridgeEvent::TurnError {
             message, error_kind, terminal_reason, ..
         } => {
             if let Some(class) = error_kind.as_deref().and_then(parse_turn_error_class) {
@@ -107,7 +107,7 @@ pub(super) fn handle_bridge_event(
                 let _ = event_tx.send(ClientEvent::TurnError { message, terminal_reason });
             }
         }
-        crate::agent::wire::BridgeEvent::SlashError { message, .. } => {
+        crate::bridge::wire::BridgeEvent::SlashError { message, .. } => {
             if resume_requested
                 && !*connected_once
                 && message.to_ascii_lowercase().contains("unknown session")
@@ -117,13 +117,13 @@ pub(super) fn handle_bridge_event(
             }
             let _ = event_tx.send(ClientEvent::SlashCommandError(message));
         }
-        crate::agent::wire::BridgeEvent::RuntimeReloadCompleted { session_id } => {
+        crate::bridge::wire::BridgeEvent::RuntimeReloadCompleted { session_id } => {
             let _ = event_tx.send(ClientEvent::RuntimeReloadCompleted { session_id });
         }
-        crate::agent::wire::BridgeEvent::RuntimeReloadFailed { session_id, message } => {
+        crate::bridge::wire::BridgeEvent::RuntimeReloadFailed { session_id, message } => {
             let _ = event_tx.send(ClientEvent::RuntimeReloadFailed { session_id, message });
         }
-        crate::agent::wire::BridgeEvent::SessionReplaced {
+        crate::bridge::wire::BridgeEvent::SessionReplaced {
             session_id,
             cwd,
             current_model,
@@ -145,17 +145,17 @@ pub(super) fn handle_bridge_event(
                 history_updates,
             });
         }
-        crate::agent::wire::BridgeEvent::SessionsListed { sessions } => {
+        crate::bridge::wire::BridgeEvent::SessionsListed { sessions } => {
             let _ = event_tx.send(ClientEvent::SessionsListed { sessions });
         }
-        crate::agent::wire::BridgeEvent::Initialized { .. } => {}
-        crate::agent::wire::BridgeEvent::StatusSnapshot { session_id, account } => {
+        crate::bridge::wire::BridgeEvent::Initialized { .. } => {}
+        crate::bridge::wire::BridgeEvent::StatusSnapshot { session_id, account } => {
             let _ = event_tx.send(ClientEvent::StatusSnapshotReceived { session_id, account });
         }
-        crate::agent::wire::BridgeEvent::ContextUsage { session_id, percentage } => {
+        crate::bridge::wire::BridgeEvent::ContextUsage { session_id, percentage } => {
             let _ = event_tx.send(ClientEvent::ContextUsageReceived { session_id, percentage });
         }
-        crate::agent::wire::BridgeEvent::McpSnapshot { session_id, servers, error } => {
+        crate::bridge::wire::BridgeEvent::McpSnapshot { session_id, servers, error } => {
             let _ = event_tx.send(ClientEvent::McpSnapshotReceived { session_id, servers, error });
         }
     }

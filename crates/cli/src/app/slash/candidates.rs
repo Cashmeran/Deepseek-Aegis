@@ -9,7 +9,7 @@ use super::{
 };
 use crate::app::App;
 use crate::app::config::store;
-use crate::app::dialog::DialogState;
+use crate::app::interaction::dialog::DialogState;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const OPUS_4_5_MODEL_ID: &str = "claude-opus-4-5-20251101";
@@ -25,13 +25,13 @@ fn opus_version_label_for_model_id(model_id: &str) -> Option<&'static str> {
     }
 }
 
-fn is_sdk_default_model_option(model: &crate::agent::model::AvailableModel) -> bool {
+fn is_sdk_default_model_option(model: &crate::bridge::model::AvailableModel) -> bool {
     model.id.eq_ignore_ascii_case("default") || model.display_name.eq_ignore_ascii_case("default")
 }
 
 fn model_candidate_secondary(
     app: &App,
-    model: &crate::agent::model::AvailableModel,
+    model: &crate::bridge::model::AvailableModel,
 ) -> Option<String> {
     let base = model
         .description
@@ -154,7 +154,7 @@ fn advertised_commands(app: &App) -> Vec<String> {
 pub(super) fn find_advertised_command<'a>(
     app: &'a App,
     command_name: &str,
-) -> Option<&'a crate::agent::model::AvailableCommand> {
+) -> Option<&'a crate::bridge::model::AvailableCommand> {
     app.available_commands.iter().find(|cmd| normalize_slash_name(&cmd.name) == command_name)
 }
 
