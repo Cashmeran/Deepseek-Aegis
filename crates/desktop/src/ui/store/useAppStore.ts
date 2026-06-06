@@ -62,6 +62,7 @@ export type SessionView = {
   createdAt?: number;
   updatedAt?: number;
   hydrated: boolean;
+  cachePct?: number;
 };
 
 interface AppState {
@@ -383,10 +384,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "stream.done": {
         streamFlushAll();
         const { sessionId, input_tokens, output_tokens, cache_read_tokens, cost } = event.payload;
+        // Per-turn cache rate: cache_read is subset of input_tokens for this turn
+        const cachePct = input_tokens > 0 ? Math.round((cache_read_tokens / input_tokens) * 100) : 0;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
           const updatedMessages = [...existing.messages, { type: "usage", input_tokens, output_tokens, cache_read_tokens, cost } as StreamMessage];
-          // Persist complete messages to disk (includes thinking, tool_use, tool_result etc.)
           const cwd = existing.cwd;
           if (cwd) {
             window.__TAURI__?.core?.invoke("save_session_messages", {
@@ -395,7 +397,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               messages: updatedMessages,
             }).catch(() => {});
           }
-          return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: updatedMessages } } };
+          return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: updatedMessages, cachePct } } };
         });
         break;
       }

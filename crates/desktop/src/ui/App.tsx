@@ -540,17 +540,16 @@ function contextWindow(model: string): number {
 }
 
 function StatusBar({
-  inputTokens, outputTokens, cacheTokens, cost,
+  inputTokens, outputTokens, cost, cachePct,
   isRunning, model, connected,
 }: {
-  inputTokens: number; outputTokens: number; cacheTokens: number; cost: number;
+  inputTokens: number; outputTokens: number; cost: number; cachePct?: number;
   isRunning: boolean; model: string; connected: boolean;
 }) {
   const ctx = contextWindow(model);
   const totalInput = inputTokens + outputTokens;
   const ctxPct = Math.round((totalInput / ctx) * 100);
-  // cache_read is a subset of input_tokens — denominator is input_tokens only
-  const cachePct = inputTokens > 0 ? Math.round((cacheTokens / inputTokens) * 100) : 0;
+  const fmtK = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
 
   return (
     <div className="status-bar">
@@ -559,23 +558,20 @@ function StatusBar({
         <span className="status-bar-value">{model}</span>
       </div>
       <div className="status-bar-divider" />
-
-      {/* Token usage bar */}
       <div className="status-bar-group" style={{gap:6,flex:0}}>
         <span className="status-bar-label" style={{flexShrink:0}}>Token</span>
         <div className="status-bar-token-bar">
           <div className="status-bar-token-fill" style={{width:`${Math.min(ctxPct, 100)}%`}} />
         </div>
         <span className="status-bar-value" style={{flexShrink:0}}>
-          {totalInput.toLocaleString()}/{(ctx/1000).toFixed(0)}K ({ctxPct}%)
+          {fmtK(totalInput)}/{fmtK(ctx)} ({ctxPct}%)
         </span>
       </div>
-
       <div className="status-bar-divider" />
       <div className="status-bar-group">
         <span className="status-bar-label">缓存命中</span>
-        <span className={`status-bar-value ${cachePct > 50 ? "highlight" : ""}`}>
-          {cachePct}%
+        <span className={`status-bar-value ${cachePct && cachePct > 50 ? "highlight" : ""}`}>
+          {cachePct ?? "--"}%
         </span>
       </div>
       <div className="status-bar-divider" />
@@ -849,8 +845,8 @@ function App() {
       <StatusBar
         inputTokens={cumulativeUsage.input_tokens}
         outputTokens={cumulativeUsage.output_tokens}
-        cacheTokens={cumulativeUsage.cache_tokens}
         cost={cumulativeUsage.cost}
+        cachePct={activeSession?.cachePct}
         isRunning={isRunning}
         model={selectedModel}
         connected={connected}
