@@ -3,7 +3,7 @@ import { I } from "../icons";
 
 type SettingsFields = { apiKey: string; model: string; };
 
-const AVAILABLE_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3.2", "deepseek-r1"];
+const AVAILABLE_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
 type TabId = "general" | "context" | "mcp" | "logs";
 
@@ -63,7 +63,7 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
           <div className="settings-header" style={{padding:"0 8px 12px",borderBottom:"1px solid var(--border)",marginBottom:4,fontSize:14}}>设置</div>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"none",background:tab===t.id?"var(--bg-hover)":"transparent",color:tab===t.id?"var(--fg-primary)":"var(--fg-muted)",fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left"}}>
+              className="tab-btn" data-on={tab === t.id} style={{textAlign:"left",width:"100%",borderRadius:"var(--radius-sm)",borderBottom:"none",marginBottom:0}}>
               {t.label}
             </button>
           ))}

@@ -88,18 +88,18 @@ export function DiffView({ patch, className = "", maxHeight = 320, filePath }: P
   };
 
   const diffHeader = (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 10px", borderBottom: "1px solid var(--border)", fontSize: "12px" }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "10px", fontWeight: 600, padding: "1px 5px", borderRadius: "4px", background: "var(--bg-hover)", color: "var(--fg-secondary)" }}>
+    <div className="diff-header">
+      <span className="diff-lang-badge">
         {badge}
       </span>
       <span style={{ flex: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: "12px", fontWeight: 500, color: "var(--fg-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={displayName ?? ""}>
         {displayName ?? "patch"}
       </span>
       {(parsed.added > 0 || parsed.removed > 0) && (
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px", flexShrink: 0 }}>
-          {parsed.added > 0 && <span style={{ color: "var(--success)" }}>+{parsed.added}</span>}
+        <span className="diff-stats">
+          {parsed.added > 0 && <span className="added">+{parsed.added}</span>}
           {parsed.added > 0 && parsed.removed > 0 && <span style={{ padding: "0 4px", color: "var(--fg-muted)" }}>·</span>}
-          {parsed.removed > 0 && <span style={{ color: "var(--danger)" }}>-{parsed.removed}</span>}
+          {parsed.removed > 0 && <span className="removed">-{parsed.removed}</span>}
         </span>
       )}
       <button type="button" onClick={onCopy} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-muted)", padding: "2px 4px", borderRadius: "4px", fontSize: "11px" }} title="Copy diff">
@@ -110,7 +110,7 @@ export function DiffView({ patch, className = "", maxHeight = 320, filePath }: P
 
   if (!looksLikePatch) {
     return (
-      <div className={className} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--bg-surface)" }}>
+      <div className={`diff-container ${className}`}>
         {diffHeader}
         <pre style={{ padding: "8px 12px", margin: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: "11.5px", lineHeight: "1.55", color: "var(--fg-primary)", whiteSpace: "pre-wrap", overflow: "auto", maxHeight }}>
           {patch}
@@ -157,19 +157,22 @@ export function DiffView({ patch, className = "", maxHeight = 320, filePath }: P
   }
 
   return (
-    <div className={className} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", background: "var(--bg-surface)" }}>
+    <div className={`diff-container ${className}`}>
       {diffHeader}
-      <div style={{ overflow: "auto", maxHeight, fontFamily: "'JetBrains Mono', monospace", fontSize: "11.5px", lineHeight: "1.55" }}>
-        <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse" }}>
+      <div className="diff-body" style={{ maxHeight }}>
+        <table className="diff-table">
           <tbody>
-            {numbered.map(({ key, line, lineNo, bg, fg }) => (
-              <tr key={key} style={{ background: bg, color: fg }}>
-                <td style={{ width: "2.75rem", textAlign: "right", padding: "0 8px", userSelect: "none", color: "var(--fg-muted)", fontVariantNumeric: "tabular-nums" }}>
-                  {lineNo ?? ""}
-                </td>
-                <td style={{ whiteSpace: "pre", padding: "0 8px" }}>{line || " "}</td>
-              </tr>
-            ))}
+            {numbered.map(({ key, line, lineNo, bg, fg }) => {
+              const rowClass = line.startsWith("+") ? "added" : line.startsWith("-") ? "removed" : "";
+              return (
+                <tr key={key} className={`diff-row ${rowClass}`} style={{ background: bg, color: fg }}>
+                  <td className="diff-cell-num">
+                    {lineNo ?? ""}
+                  </td>
+                  <td className="diff-cell-content">{line || " "}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -46,6 +46,7 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
 
     let mut config = AgentConfig::default();
     config.default_model = model.to_string();
+    config.verify_before_output = true; // enable confidence scoring + verification
     if let Some(dir) = cwd {
         config.workspace_dir = dir.to_string();
     }
@@ -293,6 +294,7 @@ pub async fn client_event(
                             message: "API Key 未配置".into(),
                         });
                     }
+                    // Auto-init session state (historical projects loaded from disk have no backend state)
                     let settings = crate::state::ProviderSettings {
                         provider: crate::events::ProviderKind::DeepSeek,
                         api_key: key,
@@ -301,8 +303,10 @@ pub async fn client_event(
                     };
                     state.store_provider(&session_id, settings.clone());
                     state.store_mode(&session_id, "default");
-                    // Use session_id as cwd (historical projects stored by path)
                     state.store_cwd(&session_id, &session_id);
+                    // CRITICAL: ensure backend session entry exists so is_session_running() works
+                    let title = session_id.split('/').last().unwrap_or(&session_id).to_string();
+                    state.ensure_session(&session_id, title, Some(session_id.clone()));
                     settings
                 }
             };
@@ -363,6 +367,11 @@ async fn run_agent_turn(
     state: &SessionState,
     prev_messages: &[serde_json::Value],
 ) -> Result<(), String> {
+    // Guard: prevent concurrent turns for the same session
+    if !state.try_start_turn(session_id) {
+        return Err("该会话已有正在运行的任务".into());
+    }
+
     // Reuse existing agent or build a new one
     let mut agent = match state.take_agent(session_id) {
         Some(existing) => existing,
@@ -384,8 +393,11 @@ async fn run_agent_turn(
 
     let sid = session_id.to_string();
     let app_handle = app.clone();
+    const AGENT_TURN_TIMEOUT: u64 = 600; // 10 min — pattern from DeepSeek-GUI KUN timeout
 
-    let output = agent.run_streaming(prompt, &move |event: StreamEvent| {
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(AGENT_TURN_TIMEOUT),
+        agent.run_streaming(prompt, &move |event: StreamEvent| {
         // Check cancellation flag — if user pressed stop, don't emit more events
         if !state.is_session_running(&sid) {
             return; // silently drop events after cancellation
@@ -407,6 +419,16 @@ async fn run_agent_turn(
                 })
             }
             StreamEvent::ToolResult { id, name, is_error, output, elapsed_ms } => {
+                // Audit log + checkpoint (pattern from Reasonix)
+                if let Some(ref dir) = cwd {
+                    super::audit::log_tool_call(
+                        dir, &name, &output, is_error, elapsed_ms,
+                    );
+                    if !is_error && (name == "file_edit" || name == "file_write") {
+                        // Extract file path from tool input (pattern: "path" field)
+                        // Snapshot is taken before the edit in the tool itself
+                    }
+                }
                 emit(&app_handle, ServerEvent::StreamToolResult {
                     session_id: sid.clone(), id, name, is_error, output, elapsed_ms,
                 })
@@ -439,10 +461,12 @@ async fn run_agent_turn(
                 })
             }
         };
-    }).await;
+    }),
+    ).await;
 
     match output {
-        Ok(_) => {
+        Ok(Ok(_)) => {
+            state.end_turn(session_id);
             if let Some(dir) = cwd {
                 save_session_to_disk(dir, session_id, &agent);
             }
@@ -454,12 +478,23 @@ async fn run_agent_turn(
             }).ok();
             Ok(())
         }
-        Err(e) => {
-            if let Some(dir) = cwd {
-                save_session_to_disk(dir, session_id, &agent);
-            }
+        Ok(Err(e)) => {
+            state.end_turn(session_id);
             state.put_agent(session_id, agent);
+            let _ = emit(app, ServerEvent::RunnerError {
+                session_id: Some(session_id.into()), message: format!("Agent error: {e}"),
+            });
             Err(format!("Agent error: {e}"))
+        }
+        Err(_elapsed) => {
+            // Turn timeout — agent hung
+            state.end_turn(session_id);
+            state.put_agent(session_id, agent);
+            let msg = format!("回合超时 ({}s)，Agent 已强制终止", AGENT_TURN_TIMEOUT);
+            let _ = emit(app, ServerEvent::RunnerError {
+                session_id: Some(session_id.into()), message: msg.clone(),
+            });
+            Err(msg)
         }
     }
 }

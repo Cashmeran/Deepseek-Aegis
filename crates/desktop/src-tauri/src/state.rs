@@ -23,6 +23,7 @@ pub struct SessionState {
   modes: Mutex<HashMap<String, String>>,
   cwds: Mutex<HashMap<String, String>>,
   agents: Mutex<HashMap<String, aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>>>,
+  turn_running: Mutex<HashMap<String, bool>>,
   pending_permissions: Mutex<HashMap<String, oneshot::Sender<Value>>>,
 }
 
@@ -55,6 +56,21 @@ impl SessionState {
     self.sessions.lock().expect("session lock").insert(id.clone(), session.clone());
     self.messages.lock().expect("message lock").entry(id.clone()).or_default();
     session
+  }
+
+  /// Create or restore a session with a specific ID (for historical projects loaded from disk).
+  pub fn ensure_session(&self, id: &str, title: String, cwd: Option<String>) {
+    let mut sessions = self.sessions.lock().expect("session lock");
+    if !sessions.contains_key(id) {
+      let now = now_ms();
+      sessions.insert(id.to_string(), SessionInfo {
+        id: id.to_string(), title, status: SessionStatus::Running, cwd,
+        provider: Some(ProviderKind::DeepSeek),
+        model: Some("deepseek-v4-pro".into()),
+        created_at: now, updated_at: now,
+      });
+      self.messages.lock().expect("message lock").entry(id.to_string()).or_default();
+    }
   }
 
   pub fn update_session(&self, id: &str, status: SessionStatus, title: Option<String>, cwd: Option<String>) -> Option<SessionInfo> {
@@ -106,6 +122,19 @@ impl SessionState {
     self.providers.lock().expect("provider lock").remove(id);
     self.modes.lock().expect("mode lock").remove(id);
     self.cwds.lock().expect("cwd lock").remove(id);
+  }
+
+  /// Try to acquire the turn lock for this session. Returns false if a turn is already running.
+  pub fn try_start_turn(&self, id: &str) -> bool {
+    let mut running = self.turn_running.lock().expect("turn lock");
+    if running.get(id).copied().unwrap_or(false) { return false; }
+    running.insert(id.to_string(), true);
+    true
+  }
+
+  /// Release the turn lock.
+  pub fn end_turn(&self, id: &str) {
+    self.turn_running.lock().expect("turn lock").insert(id.to_string(), false);
   }
 
   /// Check if session is still running (not cancelled/stopped)

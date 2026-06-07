@@ -72,7 +72,7 @@ function ProcessSectionRow({
 
   if (section.kind === "output") {
     return (
-      <div style={{ marginTop: "8px" }}>
+      <div className="process-section">
         {section.messages.map((m, i) => (
           <div key={i} className="msg-row msg-assistant">
             <div className="msg-bubble">
@@ -88,16 +88,12 @@ function ProcessSectionRow({
     const text = section.messages.map((m) => String(m.text ?? "")).join("\n\n");
     if (!text.trim()) return <></>;
     return (
-      <div style={{ marginTop: "4px" }}>
+      <div className="process-section">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--fg-muted)", fontSize: "13px", fontWeight: 500,
-            padding: "2px 0",
-          }}
+          className="process-section summary"
+          style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--fg-muted)", fontSize: "13px", fontWeight: 500, padding: "2px 0" }}
         >
           <span style={{ opacity: 0.5 }}>{expanded ? "▼" : "▶"}</span>
           <span className={isActive ? "running-indicator" : ""}>
@@ -105,14 +101,7 @@ function ProcessSectionRow({
           </span>
         </button>
         {expanded && (
-          <div style={{
-            marginLeft: "12px", paddingLeft: "12px",
-            borderLeft: "2px solid var(--border)",
-            fontSize: "13px", lineHeight: "1.6",
-            color: "var(--fg-secondary)",
-            whiteSpace: "pre-wrap", wordBreak: "break-word",
-            maxHeight: "360px", overflowY: "auto",
-          }}>
+          <div className="process-section-content">
             {text}
           </div>
         )}
@@ -122,7 +111,7 @@ function ProcessSectionRow({
 
   // Execution section
   return (
-    <div style={{ marginTop: "4px" }}>
+    <div className="process-section">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -138,10 +127,7 @@ function ProcessSectionRow({
         <span>{section.messages.length} 个工具调用</span>
       </button>
       {expanded && (
-        <div style={{
-          marginLeft: "12px", paddingLeft: "12px",
-          borderLeft: "2px solid var(--border)",
-        }}>
+        <div className="process-section-content">
           {section.messages.map((m, i) => (
             <ToolCallCard key={i} msg={m} isRunning={isRunning} />
           ))}
@@ -156,29 +142,17 @@ function ProcessSectionRow({
 function ToolCallCard({ msg, isRunning }: { msg: Msg; isRunning: boolean }): ReactElement {
   const [open, setOpen] = useState(false);
   const status = (msg.status as string) || "pending";
-  const isError = status === "error";
-  const isPending = status === "pending" || status === "running";
   const output = (msg.output as string) || "";
   const isDiff = toolIsDiff(msg);
 
-  const statusColor = isError ? "var(--danger)" : status === "success" ? "var(--success)" : "var(--warning)";
-  const statusBg = isError ? "var(--danger-soft)" : status === "success" ? "var(--success-soft)" : "var(--warning-soft)";
-
   return (
-    <div style={{ marginTop: "4px" }}>
+    <div className="tool-card">
       <div
         role="button"
         tabIndex={0}
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === "Enter") setOpen(!open); }}
-        style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          padding: "3px 8px", borderRadius: "4px",
-          cursor: "pointer", fontSize: "12px",
-          color: statusColor, background: statusBg,
-          fontFamily: "'JetBrains Mono', monospace",
-          transition: "background 120ms ease-out",
-        }}
+        className={`tool-card-badge ${status}`}
       >
         <span>{toolSummary(msg)}</span>
         {output ? (
@@ -186,23 +160,11 @@ function ToolCallCard({ msg, isRunning }: { msg: Msg; isRunning: boolean }): Rea
         ) : null}
       </div>
       {open && output && (
-        <div style={{ marginTop: "4px", marginLeft: "8px" }}>
+        <div className="tool-card-output">
           {isDiff ? (
             <DiffView patch={output} maxHeight={280} />
           ) : (
-            <pre style={{
-              padding: "8px 12px", margin: 0,
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: "12px", lineHeight: "1.5",
-              color: "var(--fg-primary)",
-              whiteSpace: "pre-wrap", wordBreak: "break-all",
-              maxHeight: "280px", overflowY: "auto",
-            }}>
-              {output}
-            </pre>
+            <pre>{output}</pre>
           )}
         </div>
       )}
@@ -222,7 +184,7 @@ export function TurnGroup({
   const sections = groupSections(messages);
 
   return (
-    <div style={{ marginBottom: "16px" }}>
+    <div className="turn-group">
       {sections.map((section) => (
         <ProcessSectionRow
           key={`${section.kind}-${section.messages[0]?.id || Math.random()}`}

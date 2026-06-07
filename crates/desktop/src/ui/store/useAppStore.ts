@@ -384,8 +384,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "stream.done": {
         streamFlushAll();
         const { sessionId, input_tokens, output_tokens, cache_read_tokens, cost } = event.payload;
-        // Per-turn cache rate: cache_read is subset of input_tokens for this turn
-        const cachePct = input_tokens > 0 ? Math.round((cache_read_tokens / input_tokens) * 100) : 0;
+        // Per-turn cache rate, capped at 100 (DeepSeek counts cache read separately from input)
+        const cachePct = input_tokens > 0 ? Math.min(100, Math.round((cache_read_tokens / (input_tokens + cache_read_tokens)) * 100)) : 0;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
           const updatedMessages = [...existing.messages, { type: "usage", input_tokens, output_tokens, cache_read_tokens, cost } as StreamMessage];
