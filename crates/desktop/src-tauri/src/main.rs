@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 mod commands;
+mod computer;
 mod events;
 mod project;
 mod state;
@@ -33,6 +34,15 @@ fn main() {
       commands::session::delete_session,
       commands::session::delete_project,
       commands::session::check_existing_project,
+      commands::session::get_log_dir,
+      commands::session::open_log_dir,
+      commands::session::get_mcp_config,
+      commands::session::save_mcp_config,
+      commands::session::open_mcp_config_dir,
+      commands::session::get_compaction_config,
+      commands::session::save_compaction_config,
+      commands::session::get_computer_use_enabled,
+      commands::session::set_computer_use_enabled,
       commands::client_event::client_event,
       commands::client_event::get_config,
       project::project_init,
@@ -42,6 +52,7 @@ fn main() {
       project::project_list_rules,
       project::project_save_rule,
       project::project_list_sessions,
+      project::list_project_files,
     ])
     .run(tauri::generate_context!())
     .expect("error while running aegis desktop");

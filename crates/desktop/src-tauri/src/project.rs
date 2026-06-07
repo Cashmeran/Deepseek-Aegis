@@ -122,6 +122,9 @@ exclude_exts = [
 [context]
 max_turns = 25
 verify_before_output = true
+
+[computer_use]
+enabled = false
 "#;
 
 const GITIGNORE_ENTRIES: &str = "
@@ -490,6 +493,33 @@ pub fn project_list_sessions(cwd: String) -> Result<Vec<String>, String> {
     let root = PathBuf::from(&cwd);
     let pm = ProjectManager::open(&root)?;
     Ok(pm.list_sessions())
+}
+
+#[tauri::command]
+pub fn list_project_files(cwd: String) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(&cwd);
+    let mut paths = Vec::new();
+    collect_files(&root, &root, &mut paths);
+    Ok(paths)
+}
+
+fn collect_files(base: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {
+    let ignore: &[&str] = &["target", "node_modules", ".git", ".aegis", "__pycache__", "dist", "build", ".next"];
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') { continue; }
+            if path.is_dir() {
+                if ignore.contains(&name.as_str()) { continue; }
+                collect_files(base, &path, out);
+            } else {
+                if let Ok(rel) = path.strip_prefix(base) {
+                    out.push(rel.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -4,6 +4,10 @@ import { useIPC } from "./hooks/useIPC";
 import { useAppStore } from "./store/useAppStore";
 import MDContent from "./render/markdown";
 import { I } from "./icons";
+import { Thread } from "./render/Thread";
+import { SettingsModal } from "./components/SettingsModal";
+import { FileTree } from "./render/FileTree";
+import { AegisLogo, AegisWordmark } from "./render/AegisLogo";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -45,7 +49,7 @@ let toastId = 0;
 function ToastContainer({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
   if (toasts.length === 0) return null;
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="status" aria-live="polite">
       {toasts.map(t => (<div key={t.id} className={`toast ${t.kind}`} onClick={() => onRemove(t.id)}>{t.text}</div>))}
     </div>
   );
@@ -116,7 +120,7 @@ function Sidebar({
           <button className="btn-icon" title="展开" onClick={onToggle} style={{margin:"0 auto"}}><I.chevronRight /></button>
         ) : (
           <>
-            <span className="sidebar-logo">Aegis</span>
+            <AegisWordmark size={17} />
             <div className="sidebar-actions">
               <button className="btn-icon" title="新建项目" onClick={onNew}><I.plus /></button>
               <button className="btn-icon" title="收起" onClick={onToggle}><I.chevronLeft /></button>
@@ -253,48 +257,6 @@ function CommandPalette({ open, onClose, commands }: {
   );
 }
 
-/* ── Thread ────────────────────────────────────────────────── */
-
-function Thread({ messages, isRunning }: { messages: Record<string, unknown>[]; isRunning: boolean }) {
-  const turns = useMemo(() => {
-    const r: Record<string, unknown>[][] = [];
-    let cur: Record<string, unknown>[] = [];
-    for (const m of messages) { if (m.type === "user_prompt" && cur.length > 0) { r.push(cur); cur = []; } cur.push(m); }
-    if (cur.length > 0) r.push(cur);
-    return r;
-  }, [messages]);
-  if (messages.length === 0) return <div />;
-  return (
-    <div>
-      {turns.map((turn, ti) => (
-        <div key={ti}>
-          {ti > 0 && <div className="turn-divider" />}
-          {turn.map((msg, i) => {
-            const t = msg.type as string;
-            if (t === "user_prompt") return (<div key={i} className="msg-row msg-user"><div className="msg-label">You</div><div className="msg-bubble"><MDContent text={String(msg.prompt ?? "")} /></div></div>);
-            if (t === "assistant") return (<div key={i} className="msg-row msg-assistant"><div className="msg-bubble"><MDContent text={String(msg.text ?? "")} /></div></div>);
-            if (t === "thinking") return (<details key={i} className="msg-thinking"><summary>推理过程</summary><div className="msg-thinking-content">{msg.text as string}</div></details>);
-            if (t === "tool_use") return (
-              <div key={i} className="msg-tool">
-                <span className={`msg-tool-badge ${msg.status === "error" ? "error" : msg.status === "success" ? "success" : "pending"}`}>
-                  <I.check /> {(msg as Record<string,unknown>).name as string}
-                  {(msg as Record<string,unknown>).elapsed_ms ? <span style={{opacity:0.6,fontWeight:400}}> {(msg as Record<string,unknown>).elapsed_ms as number}ms</span> : null}
-                </span>
-                {msg.output ? (<details className="msg-tool-output"><summary>Output</summary><pre>{(msg as Record<string,unknown>).output as string}</pre></details>) : null}
-              </div>
-            );
-            if (t === "ask_user") return (
-              <div key={i} className="msg-row msg-user"><div className="msg-label">Agent 请求确认</div><div className="msg-bubble" style={{border:"1px solid var(--accent)",background:"var(--accent-soft)",padding:"12px 16px",borderRadius:"var(--radius)"}}><strong style={{fontSize:13}}>{(msg as Record<string,unknown>).header as string || "确认操作"}</strong><p style={{marginTop:6,fontSize:13}}>{(msg as Record<string,unknown>).question as string}</p></div></div>
-            );
-            if (t === "usage") return (<div key={i} className="msg-usage"><span>{(msg as Record<string,unknown>).input_tokens as number} in / {(msg as Record<string,unknown>).output_tokens as number} out · ${Number((msg as Record<string,unknown>).cost).toFixed(4)}</span></div>);
-            return null;
-          })}
-        </div>
-      ))}
-      {isRunning && (<div className="running-indicator"><div className="dot-pulse" /> Agent 工作中…</div>)}
-    </div>
-  );
-}
 
 /* ── Composer ──────────────────────────────────────────────── */
 
@@ -408,46 +370,6 @@ function Composer({
           inputRef.current?.focus();
         }} />}
         {popup === "model" && <ModelPopup current={model} onPick={onModelChange} onClose={() => setPopup(null)} />}
-      </div>
-    </div>
-  );
-}
-
-/* ── Modals ─────────────────────────────────────────────────── */
-
-function SettingsModal({ onClose, apiKey, model, onSave }: {
-  onClose: () => void; apiKey: string; model: string; onSave: (f: SettingsFields) => void;
-}) {
-  const [key, setKey] = useState(apiKey);
-  const [mdl, setMdl] = useState(model);
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={e => e.stopPropagation()}>
-        <div className="settings-header"><span>设置</span><button className="btn-icon" onClick={onClose}><I.x /></button></div>
-        <div className="settings-body">
-          <div className="settings-section">
-            <h3>DeepSeek 配置</h3>
-            <label style={{fontSize:12,color:"var(--fg-secondary)"}}>API Key</label>
-            <input className="input" type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="sk-…" style={{marginBottom:10}} />
-            <label style={{fontSize:12,color:"var(--fg-secondary)"}}>Model</label>
-            <select className="input" value={mdl} onChange={e => setMdl(e.target.value)}>
-              {AVAILABLE_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-          <div className="settings-section">
-            <h3>快捷键</h3>
-            <div style={{fontSize:12,color:"var(--fg-secondary)",lineHeight:1.8}}>
-              <div><kbd className="kbd">Ctrl+K</kbd> 命令面板</div>
-              <div><kbd className="kbd">Ctrl+B</kbd> 切换侧边栏</div>
-              <div><kbd className="kbd">Ctrl+,</kbd> 设置</div>
-              <div><kbd className="kbd">Enter</kbd> 发送 · <kbd className="kbd">Shift+Enter</kbd> 换行</div>
-            </div>
-          </div>
-        </div>
-        <div style={{padding:"12px 18px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"flex-end",gap:8}}>
-          <button className="btn btn-ghost" onClick={onClose}>取消</button>
-          <button className="btn btn-primary" onClick={() => { onSave({ apiKey: key, model: mdl }); onClose(); }}>保存</button>
-        </div>
       </div>
     </div>
   );
@@ -628,6 +550,7 @@ function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showCmdPalette, setShowCmdPalette] = useState(false);
   const [showContextPanel, setShowContextPanel] = useState(false);
+  const [ctxTab, setCtxTab] = useState<"info" | "files">("info");
   const [cwd, setCwd] = useState("");
   const [projectName, setProjectName] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -826,7 +749,7 @@ function App() {
           {globalError && <div style={{maxWidth:800,margin:'0 auto',padding:'0 32px'}}><div className="error-banner"><span>{globalError}</span><button className="btn btn-ghost btn-sm" onClick={() => setGlobalError(null)}>Dismiss</button></div></div>}
           {activeSession ? <Thread messages={activeSession.messages} isRunning={isRunning} /> : (
             <div className="empty-state">
-              <div className="empty-logo">ag</div>
+              <div className="empty-logo"><AegisLogo size={64} /></div>
               <div className="empty-title">Aegis Desktop</div>
               <div className="empty-desc">{connected ? "后端已连接" : "后端未连接"} · {cfg.apiKey ? `模型: ${selectedModel}` : "按 Ctrl+K 配置 API Key"}</div>
               <button className="btn btn-primary" onClick={() => setShowNewModal(true)} style={{marginTop:8}}>+ 新建项目</button>
@@ -855,14 +778,32 @@ function App() {
 
       {showContextPanel && activeSession && (
         <div className="context-panel">
-          <div className="context-panel-header"><span>上下文</span><button className="btn-icon btn-sm" onClick={() => setShowContextPanel(false)}><I.x /></button></div>
-          <div className="context-panel-section"><h4>会话</h4><p>{activeSession.title || activeSession.id}</p><p>状态: {activeSession.status} · 模式: {editMode}</p><p>消息: {activeSession.messages.length}</p></div>
-          <div className="context-panel-section"><h4>模型</h4><p>{selectedModel}</p><p>Key: {cfg.apiKey ? "已配置" : "未配置"}</p></div>
-          <div className="context-panel-section"><h4>连接</h4><p>{connected ? "已连接" : "未连接"}</p></div>
+          <div className="context-panel-header">
+            <div style={{display:"flex",gap:4}}>
+              <button onClick={() => setCtxTab("info")} style={{padding:"2px 8px",border:"none",borderRadius:4,background:ctxTab==="info"?"var(--bg-hover)":"transparent",color:ctxTab==="info"?"var(--fg-primary)":"var(--fg-muted)",fontSize:12,cursor:"pointer"}}>会话</button>
+              <button onClick={() => setCtxTab("files")} style={{padding:"2px 8px",border:"none",borderRadius:4,background:ctxTab==="files"?"var(--bg-hover)":"transparent",color:ctxTab==="files"?"var(--fg-primary)":"var(--fg-muted)",fontSize:12,cursor:"pointer"}}>文件</button>
+            </div>
+            <button className="btn-icon btn-sm" onClick={() => setShowContextPanel(false)}><I.x /></button>
+          </div>
+          {ctxTab === "info" ? (<>
+            <div className="context-panel-section"><h4>会话</h4><p>{activeSession.title || activeSession.id}</p><p>状态: {activeSession.status} · 模式: {editMode}</p><p>消息: {activeSession.messages.length}</p></div>
+            <div className="context-panel-section"><h4>模型</h4><p>{selectedModel}</p><p>Key: {cfg.apiKey ? "已配置" : "未配置"}</p></div>
+            <div className="context-panel-section"><h4>连接</h4><p>{connected ? "已连接" : "未连接"}</p></div>
+          </>) : (
+            <div style={{flex:1,overflow:"hidden"}}>
+              <FileTree cwd={activeSession.cwd || ""}
+                onSelect={(path) => console.log("Selected:", path)}
+                onDoubleClick={(path) => {
+                  if (activeSession.cwd) {
+                    window.__TAURI__?.core?.invoke("open_mcp_config_dir", { cwd: activeSession.cwd + "/" + path }).catch(() => {});
+                  }
+                }} />
+            </div>
+          )}
         </div>
       )}
       {showNewModal && <NewSessionModal projectName={projectName} setProjectName={setProjectName} cwd={cwd} setCwd={setCwd} prompt={prompt} setPrompt={setPrompt} onClose={() => setShowNewModal(false)} onCreate={handleNewSession} scanning={scanning} scanResult={scanResult} />}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} apiKey={cfg.apiKey} model={selectedModel} onSave={handleSaveSettings} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} apiKey={cfg.apiKey} model={selectedModel} onSave={handleSaveSettings} activeCwd={activeSession?.cwd} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {confirmDelete && <ConfirmDialog
         msg="选择要删除的内容："

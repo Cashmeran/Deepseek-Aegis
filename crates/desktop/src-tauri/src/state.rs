@@ -108,6 +108,13 @@ impl SessionState {
     self.cwds.lock().expect("cwd lock").remove(id);
   }
 
+  /// Check if session is still running (not cancelled/stopped)
+  pub fn is_session_running(&self, id: &str) -> bool {
+    self.sessions.lock().ok()
+      .and_then(|s| s.get(id).map(|info| info.status == SessionStatus::Running))
+      .unwrap_or(false)
+  }
+
   /// Set cancellation flag — run_agent_turn checks this between stream events
   pub fn cancel_session(&self, id: &str) {
     if let Ok(mut sessions) = self.sessions.lock() {

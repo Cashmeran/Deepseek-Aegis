@@ -110,6 +110,17 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
     registry.register(Arc::new(ConfigTool::new())).ok();
     registry.register(Arc::new(ToolSearchTool::new())).ok();
 
+    // Computer use (Windows desktop automation) — only if enabled in project config
+    if cwd.map_or(false, |dir| {
+        let cp = std::path::Path::new(dir).join(".aegis").join("config.toml");
+        std::fs::read_to_string(&cp).ok()
+            .and_then(|s| toml::from_str::<toml::Table>(&s).ok())
+            .and_then(|c| c.get("computer_use").and_then(|cu| cu.get("enabled")).and_then(|v| v.as_bool()))
+            .unwrap_or(false)
+    }) {
+        crate::computer::register_all(&registry);
+    }
+
     let tools_json = registry.get_anthropic_tools_json();
     sp.freeze_tools(&tools_json);
 
@@ -375,6 +386,10 @@ async fn run_agent_turn(
     let app_handle = app.clone();
 
     let output = agent.run_streaming(prompt, &move |event: StreamEvent| {
+        // Check cancellation flag — if user pressed stop, don't emit more events
+        if !state.is_session_running(&sid) {
+            return; // silently drop events after cancellation
+        }
         let _ = match event {
             StreamEvent::TextDelta(text) => {
                 emit(&app_handle, ServerEvent::StreamDelta {

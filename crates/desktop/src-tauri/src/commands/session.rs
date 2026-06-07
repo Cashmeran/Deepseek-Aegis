@@ -5,9 +5,20 @@
 //!   <project>/.aegis/sessions/ → per-project: index.json + <session-id>.json
 
 use std::path::PathBuf;
+use std::process::Command;
 use tauri::{AppHandle, Emitter, State};
 use crate::events::ServerEvent;
 use crate::state::SessionState;
+
+fn open_in_system(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    { Command::new("explorer").arg(path).spawn().map_err(|e| format!("{e}"))?; }
+    #[cfg(target_os = "macos")]
+    { Command::new("open").arg(path).spawn().map_err(|e| format!("{e}"))?; }
+    #[cfg(target_os = "linux")]
+    { Command::new("xdg-open").arg(path).spawn().map_err(|e| format!("{e}"))?; }
+    Ok(())
+}
 
 const PROJECTS_FILE: &str = "projects.json";
 
@@ -124,6 +135,76 @@ pub fn register_project(cwd: String, name: String) -> Result<(), String> {
     Ok(())
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Log management
+// ═══════════════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_log_dir() -> Result<String, String> {
+    Ok(dirs::home_dir().unwrap_or_default().join(".aegis").join("logs").to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn open_log_dir() -> Result<(), String> {
+    let path = dirs::home_dir().unwrap_or_default().join(".aegis").join("logs");
+    std::fs::create_dir_all(&path).ok();
+    open_in_system(&path).map_err(|e| format!("打开日志目录失败: {e}"))
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MCP config
+// ═══════════════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_mcp_config(cwd: String) -> Result<String, String> {
+    let path = PathBuf::from(&cwd).join(".mcp.json");
+    Ok(std::fs::read_to_string(&path).unwrap_or_else(|_| "{\n  \"mcpServers\": {}\n}".into()))
+}
+
+#[tauri::command]
+pub fn save_mcp_config(cwd: String, content: String) -> Result<(), String> {
+    let path = PathBuf::from(&cwd).join(".mcp.json");
+    std::fs::write(&path, &content).map_err(|e| format!("保存 MCP 配置失败: {e}"))
+}
+
+#[tauri::command]
+pub fn open_mcp_config_dir(cwd: String) -> Result<(), String> {
+    let path = PathBuf::from(&cwd);
+    open_in_system(&path).map_err(|e| format!("打开目录失败: {e}"))
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Context compaction config
+// ═══════════════════════════════════════════════════════════════
+
+#[tauri::command]
+pub fn get_compaction_config(cwd: String) -> Result<serde_json::Value, String> {
+    let config_path = PathBuf::from(&cwd).join(".aegis").join("config.toml");
+    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let config: toml::Table = toml::from_str(&content).unwrap_or_default();
+    let ctx = config.get("context").cloned().unwrap_or_else(|| toml::Value::Table(Default::default()));
+    Ok(serde_json::json!({
+        "maxTurns": ctx.get("max_turns").and_then(|v| v.as_integer()).unwrap_or(25),
+        "verifyBeforeOutput": ctx.get("verify_before_output").and_then(|v| v.as_bool()).unwrap_or(true),
+        "maxContextTokens": config.get("max_context_tokens").and_then(|v| v.as_integer()).unwrap_or(0),
+    }))
+}
+
+#[tauri::command]
+pub fn save_compaction_config(cwd: String, max_turns: Option<i64>, verify: Option<bool>, max_ctx: Option<i64>) -> Result<(), String> {
+    let config_path = PathBuf::from(&cwd).join(".aegis").join("config.toml");
+    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let mut config: toml::Table = toml::from_str(&content).unwrap_or_default();
+    let ctx = config.entry("context").or_insert(toml::Value::Table(Default::default()));
+    if let toml::Value::Table(ref mut t) = ctx {
+        if let Some(v) = max_turns { t.insert("max_turns".into(), toml::Value::Integer(v)); }
+        if let Some(v) = verify { t.insert("verify_before_output".into(), toml::Value::Boolean(v)); }
+    }
+    if let Some(v) = max_ctx { config.insert("max_context_tokens".into(), toml::Value::Integer(v)); }
+    std::fs::write(&config_path, toml::to_string_pretty(&config).unwrap_or_default())
+        .map_err(|e| format!("保存配置失败: {e}"))
+}
+
 /// Delete a single session from .aegis/sessions/ (keeps project files intact)
 #[tauri::command]
 pub fn delete_session(cwd: String, session_id: String) -> Result<(), String> {
@@ -187,6 +268,32 @@ pub fn check_existing_project(cwd: String) -> Result<Option<serde_json::Value>, 
         }
     }
     Ok(Some(serde_json::json!({ "hasSessions": true })))
+}
+
+/// Get computer_use enabled setting from project config
+#[tauri::command]
+pub fn get_computer_use_enabled(cwd: String) -> Result<bool, String> {
+    let config_path = PathBuf::from(&cwd).join(".aegis").join("config.toml");
+    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let config: toml::Table = toml::from_str(&content).unwrap_or_default();
+    Ok(config.get("computer_use")
+        .and_then(|c| c.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false))
+}
+
+/// Toggle computer_use enabled setting in project config
+#[tauri::command]
+pub fn set_computer_use_enabled(cwd: String, enabled: bool) -> Result<(), String> {
+    let config_path = PathBuf::from(&cwd).join(".aegis").join("config.toml");
+    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    let mut config: toml::Table = toml::from_str(&content).unwrap_or_default();
+    let cu = config.entry("computer_use").or_insert(toml::Value::Table(Default::default()));
+    if let toml::Value::Table(ref mut t) = cu {
+        t.insert("enabled".into(), toml::Value::Boolean(enabled));
+    }
+    std::fs::write(&config_path, toml::to_string_pretty(&config).unwrap_or_default())
+        .map_err(|e| format!("保存配置失败: {e}"))
 }
 
 /// Read a full session file from .aegis/sessions/<session_id>.json

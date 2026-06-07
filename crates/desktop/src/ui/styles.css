@@ -127,12 +127,10 @@ body {
 }
 
 .sidebar-logo {
-  font-size: 17px;
-  font-weight: 650;
-  color: var(--fg-primary);
-  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
+  display: inline-flex;
+  align-items: center;
 }
 
 .sidebar.collapsed .sidebar-logo {
@@ -340,7 +338,6 @@ body {
 
 .msg-row {
   margin-bottom: 20px;
-  animation: msg-in 200ms ease-out;
 }
 
 .msg-label {
@@ -582,18 +579,15 @@ body {
 }
 
 .empty-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius);
-  background: var(--gradient-cta);
-  color: #fff;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  box-shadow: 0 4px 16px rgba(14, 165, 107, 0.25);
+  box-shadow: 0 8px 32px rgba(14, 165, 107, 0.12);
 }
 
 .empty-title {
@@ -807,15 +801,98 @@ body {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+@keyframes modal-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.96) translateY(-8px); }
+}
+
 @keyframes panel-in {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Global interaction base ──────────────────────────────── */
+
+button, select, .btn, .btn-icon, .composer-chip, .session-item,
+.popup-item, .cmd-item, .mode-seg, .sidebar-action-item, .top-bar-action {
+  cursor: pointer;
+}
+
+/* ── Hover elevation ──────────────────────────────────────── */
+
+.session-item:hover { background: var(--bg-hover); transform: translateX(2px); }
+.popup-item:hover { background: var(--accent-soft); transform: translateX(2px); }
+.cmd-item:hover { background: var(--accent-soft); }
+
+/* ── Skeleton loading ─────────────────────────────────────── */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-hover) 25%, var(--border) 50%, var(--bg-hover) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Dark mode divider fix ────────────────────────────────── */
+[data-theme="dark"] .turn-divider::before,
+[data-theme="dark"] .turn-divider::after {
+  border-color: var(--border-strong);
+}
+
+[data-theme="dark"] .status-bar-divider {
+  background: var(--border-strong);
+}
+
+/* ── Smooth sidebar transition ────────────────────────────── */
+.sidebar {
+  transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Message entrance (disable during streaming — React re-renders re-trigger) ── */
+.msg-row:last-child { animation: msg-in 200ms ease-out; }
+/* ── Toast entrance ───────────────────────────────────────── */
+.toast { animation: slide-up 200ms ease-out; }
+
+/* ── Composer card focus glow ─────────────────────────────── */
+.composer-card:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-md);
+}
+
+/* ── Input focus improvement ──────────────────────────────── */
+.input:focus, .textarea:focus, .chat-input:focus {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ── Panel animation ──────────────────────────────────────── */
+.context-panel {
+  animation: panel-in 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Modal backdrop blur ──────────────────────────────────── */
+.modal-overlay { backdrop-filter: blur(4px); }
+.confirm-overlay { backdrop-filter: blur(4px); }
+.cmd-overlay { backdrop-filter: blur(3px); }
 
 /* ── Scrollbar ───────────────────────────────────────────── */
 
@@ -863,6 +940,33 @@ body {
   padding: 0;
   background: none;
 }
+
+/* ── Syntax highlighting (rehype-highlight / highlight.js) ───── */
+.hljs-keyword  { color: #d73a49; }
+.hljs-string   { color: #032f62; }
+.hljs-number   { color: #005cc5; }
+.hljs-comment  { color: #6a737d; font-style: italic; }
+.hljs-function { color: #6f42c1; }
+.hljs-type     { color: #22863a; }
+.hljs-built_in { color: #6f42c1; }
+.hljs-literal  { color: #005cc5; }
+.hljs-attr     { color: #6f42c1; }
+.hljs-variable { color: #e36209; }
+.hljs-title    { color: #6f42c1; }
+.hljs-params   { color: #24292e; }
+
+[data-theme="dark"] .hljs-keyword  { color: #ff7b72; }
+[data-theme="dark"] .hljs-string   { color: #a5d6ff; }
+[data-theme="dark"] .hljs-number   { color: #79c0ff; }
+[data-theme="dark"] .hljs-comment  { color: #8b949e; font-style: italic; }
+[data-theme="dark"] .hljs-function { color: #d2a8ff; }
+[data-theme="dark"] .hljs-type     { color: #7ee787; }
+[data-theme="dark"] .hljs-built_in { color: #d2a8ff; }
+[data-theme="dark"] .hljs-literal  { color: #79c0ff; }
+[data-theme="dark"] .hljs-attr     { color: #d2a8ff; }
+[data-theme="dark"] .hljs-variable { color: #ffa657; }
+[data-theme="dark"] .hljs-title    { color: #d2a8ff; }
+[data-theme="dark"] .hljs-params   { color: #e6edf3; }
 
 .msg-bubble p {
   margin-bottom: 8px;
