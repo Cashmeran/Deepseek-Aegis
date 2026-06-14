@@ -42,8 +42,8 @@ impl SandboxBackend for ProcessBackend {
     fn is_available() -> bool { true }
 
     fn spawn(&self, permissions: SandboxPermissions) -> Result<Box<dyn SandboxInstance>, AgentError> {
-        std::fs::create_dir_all(".agent/sandboxes").ok();
-        let workspace = tempfile::tempdir_in(".agent/sandboxes")
+        std::fs::create_dir_all(".aegis/tmp/sandboxes").ok();
+        let workspace = tempfile::tempdir_in(".aegis/tmp/sandboxes")
             .map_err(|e| AgentError::SandboxUnavailable(format!("tempdir: {}", e)))?;
         Ok(Box::new(ProcessInstance {
             workspace,

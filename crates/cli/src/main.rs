@@ -252,7 +252,6 @@ impl App {
                 "thinking" => { c.thinking_enabled = !c.thinking_enabled; Some(format!("Thinking: {}", if c.thinking_enabled { "ON" } else { "OFF" })) }
                 "web" => { c.web_search_enabled = !c.web_search_enabled; Some(format!("Web Search: {}", if c.web_search_enabled { "ON" } else { "OFF" })) }
                 "verify" => { c.verify_before_output = !c.verify_before_output; Some(format!("Verify: {}", if c.verify_before_output { "ON" } else { "OFF" })) }
-                "auto" => { c.auto_model_routing = !c.auto_model_routing; Some(format!("Auto Routing: {}", if c.auto_model_routing { "ON" } else { "OFF" })) }
                 "snapshot" | "snap" => { c.snapshots_enabled = !c.snapshots_enabled; Some(format!("Snapshots: {}", if c.snapshots_enabled { "ON" } else { "OFF" })) }
                 _ => None
             }
@@ -298,7 +297,7 @@ impl App {
                         let skills: Vec<(String, String)> = reg.list().into_iter()
                             .map(|(n, d, _)| (n, d)).collect();
                         if skills.is_empty() {
-                            Some("No skills loaded. Place SKILL.md files in .agent/skills/<name>/".into())
+                            Some("No skills loaded. Place SKILL.md files in .aegis/skills/<name>/".into())
                         } else {
                             self.skill_dialog = Some(SkillDialog { skills, skill_idx: 0 });
                             None
@@ -350,7 +349,7 @@ impl App {
             }
             "export" => {
                 let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
-                let path = format!(".agent/export-{}.md", ts);
+                let path = format!(".aegis/export-{}.md", ts);
                 let mut content = String::from("# Aegis Session Export\n\n");
                 for msg in &self.messages {
                     match msg {
@@ -370,10 +369,10 @@ impl App {
                 let arg = arg.trim();
                 // With argument: load a specific session
                 if !arg.is_empty() {
-                    let path = if arg.starts_with(".agent/") {
+                    let path = if arg.starts_with(".aegis/") {
                         arg.to_string()
                     } else {
-                        format!(".agent/sessions/{}", arg)
+                        format!(".aegis/sessions/{}", arg)
                     };
                     let path = if path.ends_with(".json") { path } else { format!("{}.json", path) };
                     if let Ok(data) = std::fs::read_to_string(&path) {
@@ -403,7 +402,7 @@ impl App {
                 }
                 // No argument: show picker
                 let mut sessions = Vec::new();
-                if let Ok(entries) = std::fs::read_dir(".agent/sessions") {
+                if let Ok(entries) = std::fs::read_dir(".aegis/sessions") {
                     for e in entries.filter_map(|e| e.ok()) {
                         let name = e.file_name().to_string_lossy().to_string();
                         if name.ends_with(".json") {
@@ -631,7 +630,15 @@ impl Tool for LazyCodeGraphTool {
             });
         }
         let start = std::time::Instant::now();
-        // Open a fresh connection per call — no Mutex, no contention
+        // Code graph is lazy — only query if DB has been populated by a prior scan_codebase call
+        if !self.db_path.exists() {
+            return Ok(ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: false,
+                content: vec![ContentBlock::Text {
+                    text: "Codebase not indexed yet. Run scan_codebase first to build the code graph.".into(),
+                }],
+                elapsed_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         match <aegis_code_graph::SqliteGraphStore as aegis_code_graph::GraphStore>::open(&self.db_path) {
             Ok(store) => {
                 let cwd = std::env::current_dir().unwrap_or_default();
@@ -744,6 +751,15 @@ impl Tool for ImpactMapTool {
             });
         }
         let start = std::time::Instant::now();
+        // Only query if DB has been populated by a prior scan
+        if !self.db_path.exists() {
+            return Ok(ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: false,
+                content: vec![ContentBlock::Text {
+                    text: "Codebase not indexed yet. Run scan_codebase first to build the code graph.".into(),
+                }],
+                elapsed_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         match <aegis_code_graph::SqliteGraphStore as aegis_code_graph::GraphStore>::open(&self.db_path) {
             Ok(store) => {
                 let text = aegis_code_graph::get_impact_map(&store, symbol)
@@ -774,6 +790,91 @@ impl ToolMetadata for ImpactMapTool {
     }
     fn risk_level(&self) -> RiskLevel { RiskLevel::Low }
     fn concurrency_safety(&self) -> ConcurrencySafety { ConcurrencySafety::ConcurrentSafe }
+}
+
+// ── Code graph incremental update ───────────────────────────────
+
+fn incremental_graph_update(db_path: &std::path::Path) {
+    // Get files changed in working tree vs HEAD
+    let modified = std::process::Command::new("git")
+        .args(["diff", "--name-only", "HEAD"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    // Get untracked files (new files agent created)
+    let untracked = std::process::Command::new("git")
+        .args(["ls-files", "--others", "--exclude-standard"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    let files: Vec<String> = modified
+        .lines()
+        .chain(untracked.lines())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if files.is_empty() {
+        return;
+    }
+
+    // Filter to supported extensions only (skip .md, .json, .toml, etc.)
+    let supported_exts = ["rs", "py", "ts", "tsx", "js", "jsx", "go"];
+    let source_files: Vec<&String> = files
+        .iter()
+        .filter(|f| {
+            std::path::Path::new(f)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|ext| supported_exts.contains(&ext))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if source_files.is_empty() {
+        return;
+    }
+
+    // Open store and run incremental indexing
+    let store = match aegis_code_graph::SqliteGraphStore::open(db_path) {
+        Ok(s) => std::sync::Arc::new(s),
+        Err(e) => {
+            tracing::warn!("Graph incremental update: cannot open DB: {e}");
+            return;
+        }
+    };
+
+    let registry = std::sync::Arc::new(aegis_code_graph::create_default_registry());
+    let parser = std::sync::Arc::new(aegis_code_graph::CodeParser::new(registry.clone()));
+    let indexer = aegis_code_graph::IncrementalIndexer::new(
+        store as std::sync::Arc<dyn aegis_code_graph::GraphStore>,
+        parser,
+        registry,
+    );
+
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let mut updated = 0usize;
+    for file in &source_files {
+        let path = cwd.join(file);
+        match indexer.process_file(&path) {
+            Ok(aegis_code_graph::FileChange::Updated { nodes_added, .. }) => {
+                updated += 1;
+                tracing::debug!(file = %file, nodes = nodes_added, "graph: incremental update");
+            }
+            Ok(aegis_code_graph::FileChange::Unchanged) => {
+                // SHA256 fast-path: file hasn't actually changed
+            }
+            Err(e) => {
+                tracing::debug!(file = %file, error = %e, "graph: skip (unsupported or parse error)");
+            }
+        }
+    }
+
+    if updated > 0 {
+        tracing::info!(updated, total = source_files.len(), "graph: incremental indexing complete");
+    }
 }
 
 // ── Agent setup ─────────────────────────────────────────────────
@@ -825,7 +926,6 @@ fn spawn_agent(
     // P2 — advanced
     registry.register(Arc::new(ValidateTool))?;
     registry.register(Arc::new(ApplyPatchTool))?;
-    registry.register(Arc::new(RememberTool::new()))?;
     registry.register(Arc::new(ReviewTool))?;
     registry.register(Arc::new(WebFetchTool::new()))?;
     // P2 — new tools
@@ -1000,6 +1100,18 @@ fn spawn_agent(
         agent = agent.with_skills(skill_text);
     }
 
+    // Load project rules (if any)
+    let rules_text = load_md_dir("rules");
+    if !rules_text.is_empty() {
+        agent = agent.with_project_rules(rules_text);
+    }
+
+    // Load knowledge INDEX (topics only — agent uses file_read to access details on-demand)
+    let knowledge_index = load_knowledge_index();
+    if !knowledge_index.is_empty() {
+        agent = agent.with_project_knowledge(knowledge_index);
+    }
+
     if config.sandbox_backend != "none" {
         use aegis_core::types::sandbox::SandboxBackend;
         let perms = match config.sandbox_mode.as_str() {
@@ -1022,7 +1134,8 @@ fn spawn_agent(
     }
 
     // Wire causal memory (full: read + write + consolidation)
-    let memory_db = std::path::PathBuf::from(".agent/memory.db");
+    let memory_db = std::path::PathBuf::from(".aegis/memory/memory.db");
+    let _ = std::fs::create_dir_all(memory_db.parent().unwrap_or(std::path::Path::new(".")));
     let memory_store: Option<Arc<dyn aegis_memory::MemoryStore>> =
         match <aegis_memory::SqliteMemoryStore as aegis_memory::MemoryStore>::open(&memory_db) {
             Ok(store) => Some(Arc::new(store)),
@@ -1077,7 +1190,22 @@ fn spawn_agent(
                         results.push(format!("  [Bug] {} (occurrences: {}) — {}", b.error_message, b.occurrence_count, b.description));
                     }
                 }
-                // Note: Preference search requires dedicated API; will be added when store supports it
+                // Consolidated insights from cross-session patterns
+                if let Ok(insights) = store.get_recent_insights(5) {
+                    for ins in insights.iter().take(3) {
+                        let preview: String = ins.content.chars().take(200).collect();
+                        results.push(format!("  [Insight] {}", preview));
+                    }
+                }
+                if let Ok(eps) = store.get_pending_consolidation_episodes(0, 0) {
+                    let kw_lower = query.to_lowercase();
+                    for ep in eps.iter().take(2) {
+                        if ep.user_request.to_lowercase().contains(&kw_lower)
+                            || ep.agent_response.to_lowercase().contains(&kw_lower) {
+                            results.push(format!("  [Episode] Q: {} → A: {}", ep.user_request.chars().take(80).collect::<String>(), ep.agent_response.chars().take(80).collect::<String>()));
+                        }
+                    }
+                }
                 if results.is_empty() {
                     String::new()
                 } else {
@@ -1088,8 +1216,62 @@ fn spawn_agent(
         }
     }));
 
+    // Wire RememberTool — agent-facing memory query/store
+    {
+        let mem_db3 = memory_db.clone();
+        registry.register(Arc::new(RememberTool::new().with_memory(
+            Arc::new(move |action: &str, query: &str, insight: &str| -> String {
+                if !mem_db3.exists() { return "Memory store not available.".into(); }
+                match <aegis_memory::SqliteMemoryStore as aegis_memory::MemoryStore>::open(&mem_db3) {
+                    Ok(store) => match action {
+                        "store" => {
+                            // Record insight for future retrieval
+                            let ts = chrono::Utc::now().timestamp();
+                            let insight_node = aegis_memory::Insight {
+                                id: aegis_memory::make_memory_id(insight, "Insight", ts),
+                                content: insight.to_string(),
+                                confidence: 1.0,
+                                version: 1,
+                                source_count: 1,
+                                utility_score: 1.0,
+                                last_activated_at: chrono::Utc::now(),
+                                created_at: chrono::Utc::now(),
+                                status: aegis_memory::InsightStatus::Stable,
+                                metadata: serde_json::json!({}),
+                            };
+                            match store.upsert_insight(&insight_node, &[]) {
+                                Ok(_) => format!("Stored insight: {}", insight),
+                                Err(e) => format!("Failed to store: {e}"),
+                            }
+                        }
+                        _ => {
+                            // Query: search bugs + insights by keyword
+                            let mut results = Vec::new();
+                            if let Ok(bugs) = store.find_bugs_by_signature(query) {
+                                for b in bugs.iter().take(3) {
+                                    results.push(format!("[Bug] {} ({} occurrences)", b.error_message.chars().take(120).collect::<String>(), b.occurrence_count));
+                                }
+                            }
+                            if let Ok(insights) = store.get_recent_insights(5) {
+                                for ins in insights {
+                                    results.push(format!("[Insight] {}", ins.content.chars().take(200).collect::<String>()));
+                                }
+                            }
+                            if results.is_empty() {
+                                "No relevant memories found.".into()
+                            } else {
+                                format!("=== Memory Search Results ===\n{}", results.join("\n"))
+                            }
+                        }
+                    },
+                    Err(e) => format!("Memory unavailable: {e}"),
+                }
+            })
+        )))?;
+    }
+
     // Wire code graph (callback + callable tool + sync scan on startup)
-    let graph_db = std::path::PathBuf::from(".agent/code_graph.db");
+    let graph_db = std::path::PathBuf::from(".aegis/code-graph/graph.db");
     let graph_db2 = graph_db.clone();
     agent = agent.with_graph(Arc::new(move |query: &str| -> String {
         if !graph_db.exists() { return String::new(); }
@@ -1340,8 +1522,8 @@ fn spawn_agent(
             }
 
             // Auto-save session after each turn (with message history for /resume)
-            let _ = std::fs::create_dir_all(".agent/sessions");
-            let session_file = format!(".agent/sessions/session-{:03}.json", turn_count);
+            let _ = std::fs::create_dir_all(".aegis/sessions");
+            let session_file = format!(".aegis/sessions/session-{:03}.json", turn_count);
             let conv_msgs: Vec<serde_json::Value> = agent.conversation().messages().iter()
                 .filter_map(|m| match m {
                     aegis_core::types::message::Message::User(u) => Some(serde_json::json!({"role":"user","content":u.content})),
@@ -1379,10 +1561,164 @@ fn spawn_agent(
                     }
                 }
             }
+
+            // Incremental code-graph update: if graph DB exists, re-index files
+            // modified this turn via git diff. Cheap — SHA256 fast-path skips
+            // unchanged files; only actually edited files get tree-sitter parsed.
+            let graph_db_path = std::path::PathBuf::from(".aegis/code-graph/graph.db");
+            if graph_db_path.exists() {
+                let graph_db = graph_db_path.clone();
+                tokio::task::spawn_blocking(move || {
+                    incremental_graph_update(&graph_db);
+                });
+            }
         }
     });
 
     Ok((input_tx, stream_rx, skill_arc))
+}
+
+// ── Project init ────────────────────────────────────────────────
+
+const AEGIS_DEFAULT_CONFIG: &str = r#"# Aegis project configuration
+[model]
+name = "deepseek-v4-pro"
+effort = "max"
+
+[permissions]
+auto_allow = [
+    "Bash(cargo *)",
+    "Bash(git status)",
+    "Bash(git diff *)",
+    "Bash(git log *)",
+    "Read",
+    "Glob",
+    "Grep",
+    "Edit",
+    "Write",
+]
+deny = [
+    "Read(.env)",
+    "Read(.env.*)",
+    "Read(*credentials*)",
+    "Bash(rm -rf /)",
+    "Bash(sudo *)",
+]
+
+[context]
+max_turns = 25
+verify_before_output = true
+"#;
+
+const GITIGNORE_ENTRIES: &str = "
+# Aegis — local-only project files (do not commit)
+.aegis/
+";
+
+/// Initialize the project-local .aegis/ directory tree. Idempotent — safe to call every startup.
+fn init_project_dir() {
+    let root = std::env::current_dir().unwrap_or_default();
+    let aegis_dir = root.join(".aegis");
+
+    // Create subdirectories — only what the CLI actually uses
+    for sub in &["rules", "sessions", "skills", "tmp", "memory", "code-graph", "knowledge"] {
+        let _ = std::fs::create_dir_all(aegis_dir.join(sub));
+    }
+
+    // Write default config if missing
+    let config_path = aegis_dir.join("config.toml");
+    if !config_path.exists() {
+        if let Ok(mut f) = std::fs::File::create(&config_path) {
+            use std::io::Write;
+            let _ = f.write_all(AEGIS_DEFAULT_CONFIG.as_bytes());
+        }
+    }
+
+    // Append Aegis entries to .gitignore
+    let gitignore_path = root.join(".gitignore");
+    let entries = GITIGNORE_ENTRIES.trim();
+    if gitignore_path.exists() {
+        if let Ok(existing) = std::fs::read_to_string(&gitignore_path) {
+            if !existing.contains("# Aegis — local-only project files") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&gitignore_path) {
+                    use std::io::Write;
+                    let _ = writeln!(f);
+                    let _ = f.write_all(entries.as_bytes());
+                    let _ = f.write_all(b"\n");
+                }
+            }
+        }
+    } else {
+        if let Ok(mut f) = std::fs::File::create(&gitignore_path) {
+            use std::io::Write;
+            let _ = f.write_all(entries.as_bytes());
+            let _ = f.write_all(b"\n");
+        }
+    }
+}
+
+/// Load `.aegis/knowledge/INDEX.md` — a lightweight topic index.
+/// Agent sees only this; uses file_read to access specific knowledge files on-demand.
+/// If INDEX.md doesn't exist but knowledge .md files do, auto-generate a simple index.
+fn load_knowledge_index() -> String {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let knowledge_dir = cwd.join(".aegis").join("knowledge");
+    let index_path = knowledge_dir.join("INDEX.md");
+
+    if index_path.exists() {
+        return std::fs::read_to_string(&index_path).unwrap_or_default();
+    }
+
+    // Auto-generate index from existing .md files (exclude INDEX.md itself)
+    let mut topics: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&knowledge_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "md") && path.file_stem().map_or(true, |s| s != "INDEX") {
+                let name = path.file_stem()
+                    .map(|s| s.to_string_lossy().replace('-', " ").replace('_', " "))
+                    .unwrap_or_default();
+                // Try to extract first heading as description
+                let desc = std::fs::read_to_string(&path).ok()
+                    .and_then(|c| c.lines().find(|l| l.starts_with("# ")).map(|l| l.trim_start_matches("# ").to_string()))
+                    .unwrap_or_else(|| "(no description)".into());
+                topics.push(format!("- [{}](.aegis/knowledge/{}) — {}", name, path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(), desc));
+            }
+        }
+    }
+
+    if topics.is_empty() {
+        return String::new();
+    }
+
+    format!("# Project Knowledge Index\n\
+             Below are knowledge topics persisted across sessions.\n\
+             Use file_read on the listed paths to access full content when relevant to the task.\n\n\
+             {}", topics.join("\n"))
+}
+
+/// Load all .md files from `.aegis/<dir>/` and concatenate into a single string.
+/// Used for project rules — agent must follow these instructions.
+fn load_md_dir(dir: &str) -> String {
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let dir_path = cwd.join(".aegis").join(dir);
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "md") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if !content.trim().is_empty() {
+                        let name = path.file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        out.push(format!("### {name}\n{content}"));
+                    }
+                }
+            }
+        }
+    }
+    out.join("\n\n")
 }
 
 // ── Main ────────────────────────────────────────────────────────
@@ -1414,6 +1750,9 @@ fn main() -> anyhow::Result<()> {
 
     // ── Chat mode (default) ──
     install_panic_hook();
+
+    // Initialize project-local .aegis/ directory (idempotent)
+    init_project_dir();
 
     let config = cli::load_config();
     let model = if !args.model.is_empty() && args.model != "deepseek-v4-pro" { args.model.clone() } else { config.model.clone() };
@@ -1463,7 +1802,7 @@ fn main() -> anyhow::Result<()> {
 
     // ── Load codebase overview in background (don't block TUI startup) ──
     let overview_tx = agent_tx.clone();
-    let overview_db_path = std::path::PathBuf::from(".agent/code_graph.db");
+    let overview_db_path = std::path::PathBuf::from(".aegis/code-graph/graph.db");
     tokio::task::spawn_blocking(move || {
         if !overview_db_path.exists() { return; }
         match aegis_code_graph::SqliteGraphStore::open(&overview_db_path) {

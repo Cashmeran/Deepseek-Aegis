@@ -83,17 +83,6 @@ pub(crate) fn is_word_match(keyword: &str, text: &str) -> bool {
     }
 }
 
-/// 将 ConfidenceScorer 的原始 0.0-1.0 分数映射到 ConfidenceLevel。
-pub(crate) fn score_to_level(raw_score: f32) -> crate::agent::output::ConfidenceLevel {
-    if raw_score >= 0.9 {
-        crate::agent::output::ConfidenceLevel::High
-    } else if raw_score >= 0.6 {
-        crate::agent::output::ConfidenceLevel::Medium
-    } else {
-        crate::agent::output::ConfidenceLevel::Low
-    }
-}
-
 /// 判断 LLM 错误是否可重试。
 /// 4xx 请求错误不重试 (客户端错误), 5xx/网络错误可重试。
 pub(crate) fn is_retryable(err: &crate::error::AgentError) -> bool {

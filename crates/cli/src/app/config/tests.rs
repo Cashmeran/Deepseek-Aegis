@@ -799,7 +799,7 @@ fn handle_key_cycles_default_permission_mode() {
 
     assert_eq!(
         store::default_permission_mode(&app.config.committed_settings_document),
-        Ok(DefaultPermissionMode::Auto)
+        Ok(DefaultPermissionMode::AcceptEdits)
     );
 }
 

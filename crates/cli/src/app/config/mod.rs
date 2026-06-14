@@ -221,10 +221,8 @@ pub struct SettingSpec {
 pub enum DefaultPermissionMode {
     #[default]
     Default,
-    Auto,
     AcceptEdits,
     Plan,
-    DontAsk,
     BypassPermissions,
 }
 
@@ -233,10 +231,8 @@ impl DefaultPermissionMode {
     pub const fn as_stored(self) -> &'static str {
         match self {
             Self::Default => "default",
-            Self::Auto => "auto",
             Self::AcceptEdits => "acceptEdits",
             Self::Plan => "plan",
-            Self::DontAsk => "dontAsk",
             Self::BypassPermissions => "bypassPermissions",
         }
     }
@@ -245,10 +241,8 @@ impl DefaultPermissionMode {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Default => "Default",
-            Self::Auto => "Auto",
             Self::AcceptEdits => "Accept Edits",
             Self::Plan => "Plan",
-            Self::DontAsk => "Don't Ask",
             Self::BypassPermissions => "Bypass Permissions",
         }
     }
@@ -257,10 +251,8 @@ impl DefaultPermissionMode {
     pub fn from_stored(value: &str) -> Option<Self> {
         match value {
             "default" => Some(Self::Default),
-            "auto" => Some(Self::Auto),
             "acceptEdits" => Some(Self::AcceptEdits),
             "plan" => Some(Self::Plan),
-            "dontAsk" => Some(Self::DontAsk),
             "bypassPermissions" => Some(Self::BypassPermissions),
             _ => None,
         }
@@ -269,11 +261,9 @@ impl DefaultPermissionMode {
     #[must_use]
     pub const fn next(self) -> Self {
         match self {
-            Self::Default => Self::Auto,
-            Self::Auto => Self::AcceptEdits,
+            Self::Default => Self::AcceptEdits,
             Self::AcceptEdits => Self::Plan,
-            Self::Plan => Self::DontAsk,
-            Self::DontAsk => Self::BypassPermissions,
+            Self::Plan => Self::BypassPermissions,
             Self::BypassPermissions => Self::Default,
         }
     }
@@ -282,11 +272,9 @@ impl DefaultPermissionMode {
     pub const fn prev(self) -> Self {
         match self {
             Self::Default => Self::BypassPermissions,
-            Self::Auto => Self::Default,
-            Self::AcceptEdits => Self::Auto,
+            Self::AcceptEdits => Self::Default,
             Self::Plan => Self::AcceptEdits,
-            Self::DontAsk => Self::Plan,
-            Self::BypassPermissions => Self::DontAsk,
+            Self::BypassPermissions => Self::Plan,
         }
     }
 }

@@ -26,12 +26,12 @@ export function StatusBar({
         <span className="status-bar-value">{model}</span>
       </div>
       <div className="status-bar-divider" />
-      <div className="status-bar-group" style={{gap:6,flex:0}}>
-        <span className="status-bar-label" style={{flexShrink:0}}>Token</span>
+      <div className="status-bar-group gap-xs" style={{ flex: 0 }}>
+        <span className="status-bar-label">Token</span>
         <div className="status-bar-token-bar">
           <div className="status-bar-token-fill" style={{width:`${Math.min(ctxPct, 100)}%`}} />
         </div>
-        <span className="status-bar-value" style={{flexShrink:0}}>
+        <span className="status-bar-value">
           {fmtK(totalInput)}/{fmtK(ctx)} ({ctxPct}%)
         </span>
       </div>
@@ -47,7 +47,7 @@ export function StatusBar({
         <span className="status-bar-label">费用</span>
         <span className="status-bar-value">¥{cost.toFixed(4)}</span>
       </div>
-      <span style={{flex:1}} />
+      <span className="spacer" />
       <div className="status-bar-group">
         <span className={`status-bar-value ${isRunning ? "highlight" : ""}`}>
           {isRunning ? "运行中" : connected ? "就绪" : "离线"}

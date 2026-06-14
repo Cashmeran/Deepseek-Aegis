@@ -29,13 +29,15 @@ impl PermissionChecker for DefaultPermissionChecker {
         match mode {
             PermissionMode::Default => match risk {
                 RiskLevel::High => PermissionResult::Ask,
-                _ => PermissionResult::Allow,
+                RiskLevel::Medium => PermissionResult::Allow,
+                RiskLevel::Low => PermissionResult::Allow,
             },
-            PermissionMode::Auto => match risk {
-                RiskLevel::High => PermissionResult::Ask,
-                _ => PermissionResult::Allow,
+            PermissionMode::Plan => match risk {
+                RiskLevel::Low => PermissionResult::Allow,
+                _ => PermissionResult::Deny,
             },
-            PermissionMode::Bypass | PermissionMode::Yolo => PermissionResult::Allow,
+            PermissionMode::Yolo => PermissionResult::Allow,
+            PermissionMode::Chat => PermissionResult::Deny,
         }
     }
 
@@ -44,7 +46,7 @@ impl PermissionChecker for DefaultPermissionChecker {
             "bash" | "file_write" | "file_edit" => RiskLevel::High,
             "web_fetch" => RiskLevel::Medium,
             "file_read" | "glob" | "grep" => RiskLevel::Low,
-            _ => RiskLevel::High, // 未知工具默认高风险
+            _ => RiskLevel::High,
         }
     }
 }
@@ -63,11 +65,29 @@ mod tests {
     }
 
     #[test]
-    fn test_bypass_always_allows() {
+    fn test_yolo_always_allows() {
         let checker = DefaultPermissionChecker;
         assert_eq!(
-            checker.check("bash", RiskLevel::High, PermissionMode::Bypass),
+            checker.check("bash", RiskLevel::High, PermissionMode::Yolo),
             PermissionResult::Allow
+        );
+    }
+
+    #[test]
+    fn test_plan_denies_writes() {
+        let checker = DefaultPermissionChecker;
+        assert_eq!(
+            checker.check("bash", RiskLevel::High, PermissionMode::Plan),
+            PermissionResult::Deny
+        );
+    }
+
+    #[test]
+    fn test_chat_denies_all() {
+        let checker = DefaultPermissionChecker;
+        assert_eq!(
+            checker.check("file_read", RiskLevel::Low, PermissionMode::Chat),
+            PermissionResult::Deny
         );
     }
 

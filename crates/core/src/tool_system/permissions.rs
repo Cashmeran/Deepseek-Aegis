@@ -20,23 +20,28 @@ impl ToolPermissionChecker {
     }
 
     /// 检查给定操作是否需要用户确认。
-    /// 返回 true = 需要确认，false = 自动通过。
-    pub fn requires_approval(
-        risk: RiskLevel,
+    /// 返回 Option: Some(true) = 确认, Some(false) = 自动通过, None = 拒绝执行。
+    pub fn check(
+        tool_name: &str,
         mode: PermissionMode,
-    ) -> bool {
+    ) -> Option<bool> {
+        let risk = Self::classify_risk(tool_name);
         match mode {
             PermissionMode::Default => {
-                // 默认: 高风险需要确认
-                matches!(risk, RiskLevel::High)
+                // 高风险需要确认，低/中直接通过
+                Some(risk == RiskLevel::High)
             }
-            PermissionMode::Auto => {
-                // 自动: 只有高风险需要确认 (ML 置信度由 AgentLoop 控制)
-                matches!(risk, RiskLevel::High)
+            PermissionMode::Plan => {
+                // 只允许低风险(只读)，中/高风险拒绝
+                if risk == RiskLevel::Low { Some(false) } else { None }
             }
-            PermissionMode::Bypass | PermissionMode::Yolo => {
-                // 全放行: 不需要确认
-                false
+            PermissionMode::Yolo => {
+                // 全放行
+                Some(false)
+            }
+            PermissionMode::Chat => {
+                // 全拒绝
+                None
             }
         }
     }
@@ -71,26 +76,50 @@ mod tests {
     }
 
     #[test]
-    fn test_default_mode_requires_approval_for_high_risk() {
-        assert!(ToolPermissionChecker::requires_approval(
-            RiskLevel::High,
-            PermissionMode::Default
-        ));
+    fn test_default_mode_asks_for_high_risk() {
+        assert_eq!(
+            ToolPermissionChecker::check("bash", PermissionMode::Default),
+            Some(true) // needs approval
+        );
     }
 
     #[test]
-    fn test_default_mode_auto_passes_low_risk() {
-        assert!(!ToolPermissionChecker::requires_approval(
-            RiskLevel::Low,
-            PermissionMode::Default
-        ));
+    fn test_default_mode_allows_low_risk() {
+        assert_eq!(
+            ToolPermissionChecker::check("file_read", PermissionMode::Default),
+            Some(false) // auto allow
+        );
     }
 
     #[test]
-    fn test_bypass_mode_never_requires_approval() {
-        assert!(!ToolPermissionChecker::requires_approval(
-            RiskLevel::High,
-            PermissionMode::Bypass
-        ));
+    fn test_plan_mode_denies_writes() {
+        assert_eq!(
+            ToolPermissionChecker::check("file_write", PermissionMode::Plan),
+            None // denied
+        );
+    }
+
+    #[test]
+    fn test_plan_mode_allows_reads() {
+        assert_eq!(
+            ToolPermissionChecker::check("file_read", PermissionMode::Plan),
+            Some(false) // auto allow
+        );
+    }
+
+    #[test]
+    fn test_yolo_mode_allows_all() {
+        assert_eq!(
+            ToolPermissionChecker::check("bash", PermissionMode::Yolo),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn test_chat_mode_denies_all() {
+        assert_eq!(
+            ToolPermissionChecker::check("file_read", PermissionMode::Chat),
+            None // denied
+        );
     }
 }

@@ -589,6 +589,11 @@ fn spawn_agent() -> anyhow::Result<(mpsc::UnboundedSender<String>, mpsc::Unbound
 fn main() -> anyhow::Result<()> {
     install_panic_hook();
 
+    // Ensure runtime directories exist
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let _ = std::fs::create_dir_all(cwd.join(".aegis").join("sessions"));
+    let _ = std::fs::create_dir_all(cwd.join(".aegis").join("rules"));
+
     // Build tokio runtime for agent background task
     let rt = tokio::runtime::Runtime::new()?;
     let _rt_guard = rt.enter(); // keep alive

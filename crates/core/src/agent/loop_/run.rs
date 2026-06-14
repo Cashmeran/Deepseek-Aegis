@@ -1,6 +1,6 @@
 //! run() — 非流式 Agent 主执行循环。
 
-use crate::agent::helpers::{classify_task_type, is_complex_task, score_to_level};
+use crate::agent::helpers::{classify_task_type, is_complex_task};
 use crate::agent::output::{AgentOutput, ConfidenceLevel};
 use crate::agent::system_prompt::HarnessPhase;
 use crate::error::AgentResult;
@@ -233,13 +233,9 @@ impl<L: LlmClient> AgentLoop<L> {
                     });
                 }
                 TaskType::Question | TaskType::Conversation => {
-                    let raw_score = self
-                        .confidence_scorer
-                        .score(response.reasoning.as_deref().unwrap_or(""));
-                    let confidence = score_to_level(raw_score);
                     return Ok(AgentOutput {
                         content,
-                        confidence,
+                        confidence: ConfidenceLevel::Medium,
                         verification_report: None,
                         summary: None,
                     });

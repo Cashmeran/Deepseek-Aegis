@@ -1,6 +1,6 @@
 //! run_streaming() — 流式 Agent 执行循环，每个 LLM 响应块通过 callback 推送。
 
-use crate::agent::helpers::{classify_task_type, score_to_level};
+use crate::agent::helpers::classify_task_type;
 use crate::agent::output::{AgentOutput, ConfidenceLevel};
 use crate::agent::system_prompt::HarnessPhase;
 use crate::error::{AgentError, AgentResult};
@@ -273,8 +273,7 @@ impl<L: LlmClient> AgentLoop<L> {
                     return Ok(AgentOutput { content, confidence: verified.confidence, verification_report: Some(verified.report), summary: None });
                 }
                 TaskType::Question | TaskType::Conversation => {
-                    let raw = self.confidence_scorer.score(response.reasoning.as_deref().unwrap_or(""));
-                    return Ok(AgentOutput { content, confidence: score_to_level(raw), verification_report: None, summary: None });
+                    return Ok(AgentOutput { content, confidence: ConfidenceLevel::Medium, verification_report: None, summary: None });
                 }
             }
         }

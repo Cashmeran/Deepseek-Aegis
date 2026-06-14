@@ -10,7 +10,7 @@
 
 /// Initialize JSON-structured file logging
 pub fn init_tracing() {
-    let file_appender = tracing_appender::rolling::daily(".agent/logs", "aegis.log");
+    let file_appender = tracing_appender::rolling::daily(".aegis/logs", "aegis.log");
 
     tracing_subscriber::fmt()
         .with_env_filter(

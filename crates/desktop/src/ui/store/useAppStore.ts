@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { PermissionMode, ProviderConfig, ProviderConfigs, ProviderKind, ServerEvent, SessionStatus, StreamMessage } from "../types";
 
-const PROVIDER_STORAGE_KEY = "open-cowork.provider-configs";
-const PERMISSION_STORAGE_KEY = "open-cowork.permission-mode";
+const PROVIDER_STORAGE_KEY = "aegis.provider-configs";
+const PERMISSION_STORAGE_KEY = "aegis.permission-mode";
 
 const DEFAULT_PROVIDER_CONFIGS: ProviderConfigs = {
   deepseek: {
@@ -34,10 +34,10 @@ const persistProviderConfigs = (configs: ProviderConfigs) => {
 };
 
 const loadPermissionMode = (): PermissionMode => {
-  if (typeof window === "undefined") return "ask";
+  if (typeof window === "undefined") return "default";
   const stored = window.localStorage.getItem(PERMISSION_STORAGE_KEY);
-  if (stored === "auto" || stored === "ask") return stored;
-  return "ask";
+  if (stored === "default" || stored === "plan" || stored === "yolo" || stored === "chat") return stored;
+  return "default";
 };
 
 const persistPermissionMode = (mode: PermissionMode) => {
@@ -384,17 +384,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "stream.done": {
         streamFlushAll();
         const { sessionId, input_tokens, output_tokens, cache_read_tokens, cost } = event.payload;
-        // Per-turn cache rate, capped at 100 (DeepSeek counts cache read separately from input)
-        const cachePct = input_tokens > 0 ? Math.min(100, Math.round((cache_read_tokens / (input_tokens + cache_read_tokens)) * 100)) : 0;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
           const updatedMessages = [...existing.messages, { type: "usage", input_tokens, output_tokens, cache_read_tokens, cost } as StreamMessage];
+          // Cumulative cache rate across all turns
+          let totalInput = 0, totalCache = 0;
+          for (const m of updatedMessages) {
+            if (m.type === "usage") {
+              const u = m as Record<string,number>;
+              totalInput += u.input_tokens || 0;
+              totalCache += u.cache_read_tokens || 0;
+            }
+          }
+          const cachePct = totalInput + totalCache > 0
+            ? Math.min(100, Math.round((totalCache / (totalInput + totalCache)) * 100))
+            : 0;
           const cwd = existing.cwd;
           if (cwd) {
             window.__TAURI__?.core?.invoke("save_session_messages", {
-              cwd,
-              sessionId,
-              messages: updatedMessages,
+              cwd, sessionId, messages: updatedMessages,
             }).catch(() => {});
           }
           return { sessions: { ...state.sessions, [sessionId]: { ...existing, status: "completed", messages: updatedMessages, cachePct } } };
@@ -598,6 +606,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       } catch { /* session file may not exist */ }
 
+      // Recalculate cumulative cache hit rate from loaded messages
+      let totalInput = 0, totalCache = 0;
+      for (const m of messages) {
+        if (m.type === "usage") {
+          const u = m as Record<string,number>;
+          totalInput += u.input_tokens || 0;
+          totalCache += u.cache_read_tokens || 0;
+        }
+      }
+      const cachePct = totalInput + totalCache > 0
+        ? Math.min(100, Math.round((totalCache / (totalInput + totalCache)) * 100))
+        : undefined;
+
       set({
         sessions: {
           ...state.sessions,
@@ -606,6 +627,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             hydrated: true,
             updatedAt: Date.now(),
             messages: messages.length > 0 ? messages : existing.messages,
+            cachePct,
           },
         },
       });

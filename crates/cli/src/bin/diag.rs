@@ -14,7 +14,7 @@ use aegis_memory::MemoryStore;
 // ── check-graph ────────────────────────────────────────────────────
 
 fn cmd_check_graph(db: Option<PathBuf>) -> anyhow::Result<()> {
-    let db_path = db.unwrap_or_else(|| PathBuf::from(".agent/code_graph.db"));
+    let db_path = db.unwrap_or_else(|| PathBuf::from(".aegis/code-graph/graph.db"));
 
     if !db_path.exists() {
         println!("DB not found at {}, running full scan...", db_path.display());
@@ -103,7 +103,7 @@ fn cmd_check_graph(db: Option<PathBuf>) -> anyhow::Result<()> {
 // ── dump-edges ─────────────────────────────────────────────────────
 
 fn cmd_dump_edges(db: Option<PathBuf>) -> anyhow::Result<()> {
-    let db_path = db.unwrap_or_else(|| PathBuf::from(".agent/code_graph.db"));
+    let db_path = db.unwrap_or_else(|| PathBuf::from(".aegis/code-graph/graph.db"));
     if !db_path.exists() { anyhow::bail!("DB not found at {}", db_path.display()); }
 
     let conn = rusqlite::Connection::open(&db_path)?;
@@ -179,7 +179,7 @@ fn cmd_test(prompt: &str) -> anyhow::Result<()> {
         registry.register(Arc::new(run_tests::RunTestsTool))?;
 
         // Code graph tools
-        let db_path = PathBuf::from(".agent/code_graph.db");
+        let db_path = PathBuf::from(".aegis/code-graph/graph.db");
         if db_path.exists() {
             registry.register(Arc::new(LazyDiagTool { db_path: db_path.clone() }))?;
             registry.register(Arc::new(ImpactDiagTool { db_path: db_path.clone() }))?;
@@ -195,7 +195,7 @@ fn cmd_test(prompt: &str) -> anyhow::Result<()> {
         }
 
         // Memory
-        let memory_db_path = PathBuf::from(".agent/memory.db");
+        let memory_db_path = PathBuf::from(".aegis/memory/memory.db");
         if let Ok(_store) = <aegis_memory::SqliteMemoryStore as aegis_memory::MemoryStore>::open(&memory_db_path) {
             agent = agent.with_memory(Arc::new({
                 let mdb = memory_db_path.clone();
@@ -218,7 +218,7 @@ fn cmd_test(prompt: &str) -> anyhow::Result<()> {
         }
 
         // Graph context
-        let graph_db = PathBuf::from(".agent/code_graph.db");
+        let graph_db = PathBuf::from(".aegis/code-graph/graph.db");
         agent = agent.with_graph(Arc::new(move |query: &str| -> String {
             if !graph_db.exists() { return String::new(); }
             aegis_code_graph::SqliteGraphStore::open(&graph_db)
@@ -308,7 +308,7 @@ impl ToolMetadata for ImpactDiagTool {
 }
 
 fn cmd_debug_sql(db: Option<PathBuf>) -> anyhow::Result<()> {
-    let db_path = db.unwrap_or_else(|| PathBuf::from(".agent/code_graph.db"));
+    let db_path = db.unwrap_or_else(|| PathBuf::from(".aegis/code-graph/graph.db"));
     if !db_path.exists() { anyhow::bail!("DB not found at {}", db_path.display()); }
 
     let conn = rusqlite::Connection::open(&db_path)?;

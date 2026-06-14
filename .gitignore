@@ -5,3 +5,4 @@ target/
 *.db-shm
 .env
 .env.local
+.aegis/

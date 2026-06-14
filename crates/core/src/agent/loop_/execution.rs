@@ -40,7 +40,7 @@ impl<L: LlmClient> AgentLoop<L> {
         }
     }
 
-    /// 并行执行工具调用。
+    /// 并行执行工具调用。执行前检查权限: Deny → 返回错误, Ask → 弹出确认, Allow → 执行。
     pub(crate) async fn execute_tools_parallel(
         &self,
         tool_uses: &[ToolUse],
@@ -49,12 +49,13 @@ impl<L: LlmClient> AgentLoop<L> {
             return Ok(vec![]);
         }
 
+        let permission_mode = self.mode.to_permission_mode();
         let progress_tx: Option<std::sync::Arc<dyn Fn(String) + Send + Sync>> =
             self.tool_progress_tx.as_ref().map(|tx| tx.clone());
 
         let ctx = ToolContext {
             working_dir: self.config.workspace_dir.clone().into(),
-            permission_mode: crate::types::tool::PermissionMode::Default,
+            permission_mode,
             session_id: self.conversation.started_at().to_rfc3339(),
             env: std::collections::HashMap::new(),
             sandbox_enabled: self.config.sandbox_backend != "none",
@@ -70,6 +71,60 @@ impl<L: LlmClient> AgentLoop<L> {
         for chunk in tool_uses.chunks(max_parallel) {
             let mut handles = Vec::with_capacity(chunk.len());
             for tu in chunk {
+                // ── Permission check ──
+                let perm = crate::tool_system::ToolPermissionChecker::check(
+                    &tu.name, permission_mode,
+                );
+                match perm {
+                    None => {
+                        // Denied — return error immediately
+                        let mode_name = format!("{:?}", permission_mode);
+                        results.push(ToolResultMessage {
+                            tool_use_id: tu.id.clone(),
+                            is_error: true,
+                            content: vec![ContentBlock::Text {
+                                text: format!(
+                                    "Permission denied: '{}' is not allowed in {} mode. Switch to Default or Yolo to use this tool.",
+                                    tu.name, mode_name
+                                ),
+                            }],
+                            elapsed_ms: 0,
+                        });
+                        continue;
+                    }
+                    Some(true) => {
+                        // Needs approval — ask user via callback
+                        if let Some(ref cb) = self.ask_user {
+                            let question = serde_json::json!({
+                                "questions": [{
+                                    "question": format!("Allow tool call: {}?", tu.name),
+                                    "header": "Permission",
+                                    "options": [
+                                        {"label": "Allow", "description": "Run this tool once"},
+                                        {"label": "Deny", "description": "Skip this call"},
+                                    ]
+                                }]
+                            });
+                            let answer = cb(&question.to_string(), "Permission");
+                            if answer.contains("Deny") || answer.is_empty() {
+                                results.push(ToolResultMessage {
+                                    tool_use_id: tu.id.clone(),
+                                    is_error: true,
+                                    content: vec![ContentBlock::Text {
+                                        text: format!("User denied '{}'.", tu.name),
+                                    }],
+                                    elapsed_ms: 0,
+                                });
+                                continue;
+                            }
+                        }
+                        // User approved → fall through to execute
+                    }
+                    Some(false) => {
+                        // Auto-allowed → fall through to execute
+                    }
+                }
+
                 if tu.name.to_lowercase() == "ask_user" {
                     if let Some(ref cb) = self.ask_user {
                         let input_json = serde_json::to_string(&tu.input).unwrap_or_default();

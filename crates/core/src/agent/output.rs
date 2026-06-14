@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct AgentOutput {
     /// Agent 的最终回复内容
     pub content: String,
-    /// 置信度 (来自 ConfidenceScorer 或 Evaluator)
+    /// 置信度 (来自 Evaluator 的验证结果)
     pub confidence: ConfidenceLevel,
     /// 验证报告 (仅代码任务有)
     pub verification_report: Option<String>,

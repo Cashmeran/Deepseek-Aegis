@@ -1,5 +1,5 @@
 export type ProviderKind = "deepseek";
-export type PermissionMode = "ask" | "auto";
+export type PermissionMode = "default" | "plan" | "yolo" | "chat";
 export type PermissionResult = "allow_once" | "allow_always" | "deny";
 
 export type ProviderConfig = {

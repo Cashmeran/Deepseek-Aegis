@@ -7,6 +7,9 @@ use tokio::sync::oneshot;
 
 use crate::events::{ProviderKind, SessionInfo, SessionStatus};
 
+/// Session-scoped agent type. Single point of change if the LLM backend changes.
+pub type SessionAgent = aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>;
+
 #[derive(Clone)]
 pub struct ProviderSettings {
   pub provider: ProviderKind,
@@ -22,7 +25,7 @@ pub struct SessionState {
   providers: Mutex<HashMap<String, ProviderSettings>>,
   modes: Mutex<HashMap<String, String>>,
   cwds: Mutex<HashMap<String, String>>,
-  agents: Mutex<HashMap<String, aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>>>,
+  agents: Mutex<HashMap<String, SessionAgent>>,
   turn_running: Mutex<HashMap<String, bool>>,
   pending_permissions: Mutex<HashMap<String, oneshot::Sender<Value>>>,
 }
@@ -154,17 +157,17 @@ impl SessionState {
   }
 
   /// Store a persistent AgentLoop for this session
-  pub fn store_agent(&self, id: &str, agent: aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>) {
+  pub fn store_agent(&self, id: &str, agent: SessionAgent) {
     self.agents.lock().expect("agent lock").insert(id.to_string(), agent);
   }
 
   /// Take the AgentLoop out (replaces with empty entry)
-  pub fn take_agent(&self, id: &str) -> Option<aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>> {
+  pub fn take_agent(&self, id: &str) -> Option<SessionAgent> {
     self.agents.lock().expect("agent lock").remove(id)
   }
 
   /// Put agent back after turn
-  pub fn put_agent(&self, id: &str, agent: aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>) {
+  pub fn put_agent(&self, id: &str, agent: SessionAgent) {
     self.agents.lock().expect("agent lock").insert(id.to_string(), agent);
   }
 

@@ -4,7 +4,7 @@
 //!   AgentDefinition (config) → AgentTool (tool) → SubagentRunner → AgentLoop (existing)
 //!
 //! Built-in agents: Explore (read-only fast search), Plan (plan-only), GeneralPurpose (full tools).
-//! Custom agents: loaded from `.agent/agents/*.md` (YAML frontmatter + markdown body).
+//! Custom agents: loaded from `.aegis/agents/*.md` (YAML frontmatter + markdown body).
 
 use std::path::Path;
 
@@ -25,7 +25,7 @@ pub struct AgentDefinition {
     pub model: Option<String>,
     /// Max agent turns — None means default (50 for sub-agents).
     pub max_turns: Option<u32>,
-    /// Source: builtin, project (.agent/agents/), user (~/.aegis/agents/)
+    /// Source: builtin, project (.aegis/agents/), user (~/.aegis/agents/)
     pub source: AgentSource,
 }
 
@@ -156,10 +156,10 @@ pub fn builtin_agents() -> Vec<AgentDefinition> {
 
 // ═══════════════ Custom agent loading ═══════════════
 
-/// Load custom agent definitions from `.agent/agents/*.md`.
+/// Load custom agent definitions from `.aegis/agents/*.md`.
 /// Format: YAML frontmatter + markdown body, .
 pub fn load_agents_dir(base_dir: &Path) -> Vec<AgentDefinition> {
-    let agents_dir = base_dir.join(".agent").join("agents");
+    let agents_dir = base_dir.join(".aegis").join("agents");
     if !agents_dir.is_dir() {
         return vec![];
     }

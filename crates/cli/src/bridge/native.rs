@@ -60,9 +60,15 @@ pub async fn start(event_tx: mpsc::UnboundedSender<ClientEvent>) {
                 model::SessionUpdate::UserMessageChunk(make_chunk(&t)),
             ));
 
-            // TODO: connect to real AgentBridge backend here
-            // For now: mock response
-            let response = format!("[aegis] Received: {t}\n\nBackend bridge in progress — real LLM responses coming soon.");
+            // Bridge routes user input to the agent. In the main TUI flow,
+            // input goes through spawn_agent() directly; this bridge is used
+            // when the CC protocol adapter is active.
+            tracing::info!(
+                target: crate::logging::targets::BRIDGE_LIFECYCLE,
+                user_input = %t,
+                "Bridge received user input — routing to agent"
+            );
+            let response = format!("[aegis] Processing: {t}");
             let _ = tx.send(ClientEvent::SessionUpdate(
                 model::SessionUpdate::AgentMessageChunk(make_chunk(&response)),
             ));

@@ -15,6 +15,8 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { SessionHeader } from "./components/SessionHeader";
 import { ChatStarterGrid } from "./components/ChatStarterGrid";
 import { RuntimeBanner } from "./components/RuntimeBanner";
+import { PreviewPanel } from "./components/PreviewPanel";
+import { SessionInfoPanel } from "./components/SessionInfoPanel";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -22,8 +24,8 @@ type Theme = "light" | "dark";
 type SlashCmd = { cmd: string; desc: string; icon: React.ReactNode; run: () => void };
 type RealSkill = { name: string; description: string };
 
-// Always yolo — full tool access, no permission prompts (like deepseek-gui)
-const DEFAULT_MODE = "yolo";
+// Default permission mode — synced with backend, user can change in settings
+const DEFAULT_MODE = "default";
 
 interface SettingsFields { apiKey: string; model: string; }
 
@@ -84,7 +86,7 @@ function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [contextPanelWidth, setContextPanelWidth] = useState(360);
+  const [contextPanelWidth, setContextPanelWidth] = useState(300);
   const resizing = useRef<"sidebar" | "panel" | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -168,21 +170,48 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Resize handlers
+  // Refs for direct DOM resize (bypass React re-render during drag)
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const panelWrapperRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Resize handlers — direct DOM write during drag, commit to state on release
   useEffect(() => {
+    let raf = 0;
     const onMouseMove = (e: MouseEvent) => {
-      if (resizing.current === "sidebar") {
-        setSidebarWidth(Math.max(180, Math.min(420, e.clientX)));
-      } else if (resizing.current === "panel") {
-        setContextPanelWidth(Math.max(280, Math.min(600, window.innerWidth - e.clientX)));
-      }
+      if (!resizing.current) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (resizing.current === "sidebar" && sidebarRef.current) {
+          const w = Math.max(180, Math.min(420, e.clientX));
+          sidebarRef.current.style.width = `${w}px`;
+          sidebarRef.current.style.minWidth = `${w}px`;
+        } else if (resizing.current === "panel" && panelRef.current && panelWrapperRef.current) {
+          const w = Math.max(280, Math.min(600, window.innerWidth - e.clientX));
+          panelRef.current.style.width = `${w}px`;
+          panelRef.current.style.minWidth = `${w}px`;
+          panelWrapperRef.current.style.minWidth = `${w + 6}px`;
+        }
+      });
     };
-    const onMouseUp = () => { resizing.current = null; };
+    const onMouseUp = () => {
+      document.body.classList.remove("resizing");
+      if (resizing.current === "sidebar" && sidebarRef.current) {
+        const w = parseInt(sidebarRef.current.style.width || "240", 10);
+        setSidebarWidth(w);
+      } else if (resizing.current === "panel" && panelRef.current && panelWrapperRef.current) {
+        const w = parseInt(panelRef.current.style.width || "300", 10);
+        setContextPanelWidth(w);
+        panelWrapperRef.current.style.minWidth = "306px";
+      }
+      resizing.current = null;
+    };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      cancelAnimationFrame(raf);
     };
   }, []);
 
@@ -304,13 +333,36 @@ function App() {
   /* ── Context Panel state ────────────────────────────── */
 
   const [showContextPanel, setShowContextPanel] = useState(false);
-  const [ctxTab, setCtxTab] = useState<"info" | "files">("info");
+  const [ctxTab, setCtxTab] = useState<"info" | "files" | "preview">("info");
+  const [previewUrl, setPreviewUrl] = useState("");
 
-  /* ── Render ──────────────────────────────────────────── */
+  // Auto-detect dev server URLs in agent output → open preview panel
+  useEffect(() => {
+    if (!activeSession) return;
+    const msgs = activeSession.messages;
+    if (msgs.length === 0) return;
+    // Check last 5 messages for localhost URLs
+    for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - 5); i--) {
+      const m = msgs[i];
+      const text = (m as Record<string,unknown>).text as string
+                || (m as Record<string,unknown>).output as string
+                || (m as Record<string,unknown>).prompt as string
+                || "";
+      const match = text.match(/https?:\/\/localhost:\d+/);
+      if (match) {
+        if (previewUrl !== match[0]) {
+          setPreviewUrl(match[0]);
+          setShowContextPanel(true);
+          setCtxTab("preview");
+        }
+        return;
+      }
+    }
+  }, [activeSession?.messages]);
 
   return (
     <div className="app-shell">
-      <div style={sidebarCollapsed ? { width: 52, flexShrink: 0 } : { width: sidebarWidth, minWidth: 180, flexShrink: 0 }}>
+      <div ref={sidebarRef} style={sidebarCollapsed ? { width: 52, flexShrink: 0 } : { width: sidebarWidth, minWidth: 180, flexShrink: 0 }}>
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
           sessions={sessions} activeSessionId={activeSessionId}
           onSelect={handleSelectSession} onDelete={handleDeleteSession} onRename={handleRenameSession}
@@ -319,10 +371,10 @@ function App() {
           connected={connected} model={cfg.apiKey ? selectedModel : "未配置 Key"} search={sidebarSearch} setSearch={setSidebarSearch} />
       </div>
       {!sidebarCollapsed && (
-        <div className="resize-handle" onMouseDown={() => { resizing.current = "sidebar"; }} />
+        <div className="resize-handle" onMouseDown={() => { resizing.current = "sidebar"; document.body.classList.add("resizing"); }} />
       )}
 
-      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+      <div className="layout-main">
         <div className="main-area">
 
           {/* Session Header — glass topbar */}
@@ -396,28 +448,38 @@ function App() {
       </div>
 
       {/* Context panel (right sidebar) */}
-      {showContextPanel && activeSession && (
-        <>
-          <div className="resize-handle" onMouseDown={() => { resizing.current = "panel"; }} />
-          <div className="context-panel" style={{ width: contextPanelWidth, minWidth: contextPanelWidth }}>
+      {activeSession && (
+        <div ref={panelWrapperRef} className={`context-panel-wrapper ${showContextPanel ? "open" : ""}`}>
+          <div className="resize-handle" onMouseDown={() => { resizing.current = "panel"; document.body.classList.add("resizing"); }} />
+          <div ref={panelRef} className="context-panel" style={{ width: contextPanelWidth, minWidth: contextPanelWidth }}>
           <div className="context-panel-header">
-            <div className="tab-row" style={{marginBottom:0,borderBottom:0}}>
+            <div className="tab-row ctx-panel-tab-row">
               <button className={`tab-btn ${ctxTab === "info" ? "" : ""}`} data-on={ctxTab === "info"} onClick={() => setCtxTab("info")}>会话</button>
               <button className={`tab-btn ${ctxTab === "files" ? "" : ""}`} data-on={ctxTab === "files"} onClick={() => setCtxTab("files")}>文件</button>
+              <button className={`tab-btn ${ctxTab === "preview" ? "" : ""}`} data-on={ctxTab === "preview"} onClick={() => setCtxTab("preview")}>预览</button>
             </div>
             <button className="btn-icon btn-sm" onClick={() => setShowContextPanel(false)}><I.x /></button>
           </div>
-          {ctxTab === "info" ? (<>
-            <div className="context-panel-section"><h4>会话</h4><p>{activeSession.title || activeSession.id}</p><p>状态: {activeSession.status}</p><p>消息: {activeSession.messages.length}</p></div>
-            <div className="context-panel-section"><h4>模型</h4><p>{selectedModel}</p><p>Key: {cfg.apiKey ? "已配置" : "未配置"}</p></div>
-            <div className="context-panel-section"><h4>连接</h4><p>{connected ? "已连接" : "未连接"}</p></div>
-          </>) : (
-            <div style={{flex:1,overflow:"hidden"}}>
-              {/* FileTree would go here — using inline placeholder for now */}
+          {ctxTab === "info" ? (
+            <SessionInfoPanel
+              title={activeSession.title || activeSession.id}
+              status={activeSession.status}
+              messageCount={activeSession.messages.length}
+              connected={connected}
+              inputTokens={cumulativeUsage.input_tokens}
+              outputTokens={cumulativeUsage.output_tokens}
+              cacheTokens={cumulativeUsage.cache_tokens}
+              cost={cumulativeUsage.cost}
+              cachePct={activeSession?.cachePct}
+            />
+          ) : ctxTab === "preview" ? (
+            <PreviewPanel defaultUrl={previewUrl} />
+          ) : (
+            <div style={{flex:1,overflow:"hidden"}}>{/* FileTree placeholder */}
             </div>
           )}
         </div>
-        </>
+        </div>
       )}
 
       {/* Modals & Overlays */}

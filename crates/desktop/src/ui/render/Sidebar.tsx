@@ -1,6 +1,7 @@
-// Sidebar — workspace-grouped project list. 1:1 port from DeepSeek-GUI.
-import { useState, useMemo, useEffect, useCallback, useRef, type ReactElement, type MouseEvent } from "react";
+// Sidebar — workspace-grouped project list.
+import { useState, useMemo, useCallback, type ReactElement, type MouseEvent } from "react";
 import { I } from "../icons";
+import { AegisWordmark } from "./AegisLogo";
 
 type Session = {
   id: string; title: string; status: string; cwd?: string;
@@ -26,10 +27,14 @@ function fmtTime(ts?: number): string {
   if (!ts) return "";
   const ms = ts < 1e12 ? ts * 1000 : ts;
   const s = (Date.now() - ms) / 1000;
-  if (s < 60) return "刚才";
+  if (s < 60) return "刚刚";
   if (s < 3600) return `${Math.floor(s / 60)}分钟前`;
   if (s < 86400) return `${Math.floor(s / 3600)}小时前`;
   return `${Math.floor(s / 86400)}天前`;
+}
+
+function folderName(path: string): string {
+  return path.split(/[/\\]/).pop() || path;
 }
 
 type Group = [string, Session[]];
@@ -50,10 +55,6 @@ function buildGroups(sessions: Record<string, Session>, query: string): Group[] 
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
-function folderName(path: string): string {
-  return path.split(/[/\\]/).pop() || path;
-}
-
 /* ── Context Menu ──────────────────────────────────────────── */
 
 type CtxMenu = {
@@ -62,24 +63,6 @@ type CtxMenu = {
 } | null;
 
 function ContextMenu({ menu, onClose }: { menu: CtxMenu; onClose: () => void }) {
-  const closeRef = useRef<() => void>(() => {});
-
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => { onClose(); };
-    closeRef.current = close;
-    // Delay so the right-click that opens the menu doesn't close it
-    const id = setTimeout(() => {
-      window.addEventListener("click", close);
-      window.addEventListener("contextmenu", close);
-    }, 0);
-    return () => {
-      clearTimeout(id);
-      window.removeEventListener("click", close);
-      window.removeEventListener("contextmenu", close);
-    };
-  }, [menu, onClose]);
-
   if (!menu) return null;
 
   return (
@@ -133,10 +116,10 @@ export function Sidebar({
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="sidebar-header">
         {collapsed ? (
-          <button className="btn-icon" title="展开" onClick={onToggle} style={{margin:"0 auto"}}><I.chevronRight /></button>
+          <button className="btn-icon" title="展开" onClick={onToggle}><I.chevronRight /></button>
         ) : (
           <>
-            <span className="sidebar-logo">Aegis</span>
+            <AegisWordmark size={15} />
             <div className="sidebar-actions">
               <button className="btn-icon" title="新建项目" onClick={onNew}><I.plus /></button>
               <button className="btn-icon" title="收起" onClick={onToggle}><I.chevronLeft /></button>
@@ -144,69 +127,68 @@ export function Sidebar({
           </>
         )}
       </div>
+
       {!collapsed && (
         <>
           <div className="sidebar-search">
-            <div style={{display:"flex",alignItems:"center",gap:6,padding:"2px 8px",borderRadius:8,border:"1px solid var(--border)",background:"var(--bg-app)"}}>
-              <I.search />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索项目…"
-                style={{flex:1,border:"none",outline:"none",background:"transparent",color:"var(--fg-primary)",fontSize:13,padding:"6px 0"}} />
-              {search && <button onClick={() => setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"var(--fg-muted)",fontSize:16,padding:0,lineHeight:1}}>×</button>}
-            </div>
+            <I.search />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="搜索项目…"
+            />
+            {search && (
+              <button className="sidebar-search-clear" onClick={() => setSearch("")}>×</button>
+            )}
           </div>
+
           <div className="sidebar-sessions">
             {groups.length === 0 ? (
-              <div style={{padding:"16px 10px",textAlign:"center",color:"var(--fg-muted)",fontSize:13,lineHeight:1.6}}>
+              <div className="sidebar-empty">
                 {search ? "没有匹配的项目" : "暂无项目\n点击 + 创建"}
               </div>
             ) : groups.map(([workspace, list]) => {
               const isCollapsed = collapsedGroups[workspace] === true;
               const sorted = [...list].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
               return (
-                <div key={workspace} style={{marginBottom:4}}>
+                <div key={workspace} className="sidebar-group">
                   <button
+                    className="sidebar-group-toggle"
                     onClick={() => setCollapsedGroups(c => ({...c, [workspace]: !c[workspace]}))}
                     onContextMenu={(e) => showGroupMenu(e, workspace)}
-                    style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 8px",border:"none",background:"transparent",cursor:"pointer",color:"var(--fg-muted)",fontSize:12.5,fontWeight:500,borderRadius:6}}
-                    className="sidebar-action-item"
                   >
-                    {isCollapsed ? <I.chevronRight /> : <I.chevronRight />}
+                    <span className="sidebar-group-chevron">{isCollapsed ? "▸" : "▾"}</span>
                     <I.folder />
-                    <span style={{flex:1,textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{folderName(workspace)}</span>
-                    <span style={{fontSize:11,color:"var(--fg-muted)"}}>{sorted.length}</span>
+                    <span className="sidebar-group-name">{folderName(workspace)}</span>
+                    <span className="sidebar-group-count">{sorted.length}</span>
                   </button>
                   {!isCollapsed && sorted.map(s => (
-                    <div key={s.id}
+                    <div
+                      key={s.id}
+                      className={`session-item ${s.id === activeSessionId ? "active" : ""}`}
                       onClick={() => onSelect(s.id)}
                       onContextMenu={(e) => showSessionMenu(e, s)}
-                      style={{
-                        display:"flex",alignItems:"center",gap:8,padding:"5px 10px 5px 28px",
-                        cursor:"pointer",borderRadius:6,fontSize:13,
-                        background: s.id === activeSessionId ? "var(--bg-active)" : "transparent",
-                        color: s.id === activeSessionId ? "var(--fg-primary)" : "var(--fg-secondary)",
-                        fontWeight: s.id === activeSessionId ? 600 : 400,
-                        transition:"background 120ms ease-out",
-                      }}
                       title={s.cwd || s.id}
                     >
-                      <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title || s.id}</span>
-                      {s.status === "running" && (
-                        <span style={{width:8,height:8,borderRadius:"50%",background:"var(--accent)",flexShrink:0}} className="pulse-dot" />
-                      )}
-                      <span style={{fontSize:11,color:"var(--fg-muted)",flexShrink:0}}>{fmtTime(s.updatedAt)}</span>
+                      <div className={`session-item-status ${s.status}`} />
+                      <span className="session-item-title">{s.title || s.id}</span>
+                      <span className="session-item-time">{fmtTime(s.updatedAt)}</span>
                     </div>
                   ))}
                 </div>
               );
             })}
           </div>
+
           <div className="sidebar-actions-bottom">
-            <button className="sidebar-action-item" onClick={onOpenSettings}><I.settings /> 设置</button>
-            <button className="sidebar-action-item" onClick={onOpenAbout}><I.info /> 关于</button>
+            <button className="sidebar-action-item" onClick={onOpenSettings}><I.settings />设置</button>
+            <button className="sidebar-action-item" onClick={onOpenAbout}><I.info />关于</button>
           </div>
+
           <div className="sidebar-footer">{connected ? "已连接" : "未连接"} · {model || "未配置"}</div>
         </>
       )}
+
       <ContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />
     </aside>
   );

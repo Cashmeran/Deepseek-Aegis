@@ -92,10 +92,9 @@ function ProcessSectionRow({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="process-section summary"
-          style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--fg-muted)", fontSize: "13px", fontWeight: 500, padding: "2px 0" }}
+          className="process-toggle"
         >
-          <span style={{ opacity: 0.5 }}>{expanded ? "▼" : "▶"}</span>
+          <span className="chevron-muted">{expanded ? "▼" : "▶"}</span>
           <span className={isActive ? "running-indicator" : ""}>
             {isActive ? "正在思考…" : "推理过程"}
           </span>
@@ -115,15 +114,10 @@ function ProcessSectionRow({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        style={{
-          display: "flex", alignItems: "center", gap: "6px",
-          background: "none", border: "none", cursor: "pointer",
-          color: isActive ? "var(--accent-text)" : "var(--fg-muted)",
-          fontSize: "13px", fontWeight: 500,
-          padding: "2px 0",
-        }}
+        className="process-toggle"
+        style={{ color: isActive ? "var(--accent-text)" : undefined }}
       >
-        <span style={{ opacity: 0.5 }}>{expanded ? "▼" : "▶"}</span>
+        <span className="chevron-muted">{expanded ? "▼" : "▶"}</span>
         <span>{section.messages.length} 个工具调用</span>
       </button>
       {expanded && (
@@ -156,7 +150,7 @@ function ToolCallCard({ msg, isRunning }: { msg: Msg; isRunning: boolean }): Rea
       >
         <span>{toolSummary(msg)}</span>
         {output ? (
-          <span style={{ opacity: 0.5, fontSize: "10px" }}>{open ? "▲" : "▼"}</span>
+          <span className="chevron-muted">{open ? "▲" : "▼"}</span>
         ) : null}
       </div>
       {open && output && (

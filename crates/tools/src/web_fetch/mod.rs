@@ -327,7 +327,7 @@ impl Tool for WebFetchTool {
 
         let content_block = if final_content.len() > 50_000 {
             ContentBlock::FileReference {
-                path: ".agent/web_fetch_result.txt".into(),
+                path: ".aegis/tmp/web_fetch_result.txt".into(),
                 preview: final_content.chars().take(500).collect(),
                 total_bytes: final_content.len() as u64,
             }

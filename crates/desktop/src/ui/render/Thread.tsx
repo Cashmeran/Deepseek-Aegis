@@ -3,6 +3,7 @@
 import { useMemo, type ReactElement } from "react";
 import MDContent from "./markdown";
 import { TurnGroup } from "./ProcessMessage";
+import { AegisLogo } from "./AegisLogo";
 
 export function Thread({ messages, isRunning }: {
   messages: Record<string, unknown>[];
@@ -39,7 +40,12 @@ export function Thread({ messages, isRunning }: {
           </div>
         );
       })}
-      {isRunning && (<div className="running-indicator"><div className="dot-pulse" /> Agent 工作中…</div>)}
+      {isRunning && (
+        <div className="running-indicator">
+          <span className="aegis-spinner"><AegisLogo size={18} /></span>
+          Agent 工作中…
+        </div>
+      )}
     </div>
   );
 }

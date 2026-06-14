@@ -93,23 +93,18 @@ pub enum ConcurrencySafety {
     ConcurrentUnsafe,
 }
 
-/// 权限模式。参考 Claude Code 的 PermissionMode 设计。
+/// 权限模式。对齐 Claude Code 的 4 种用户模式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionMode {
-    /// 默认模式。危险操作弹出确认, 安全操作自动通过。
+    /// 默认模式。高风险工具 (bash, file_write, file_edit) 弹出确认，低风险直接通过。
     Default,
-    /// 自动模式。基于ML分类器自动决策, 不弹出确认。
-    /// 仅在分类器置信度>0.95时使用。
-    Auto,
-    /// 绕过模式。跳过所有权限检查。仅在信任的沙箱环境中使用。
-    /// 纯静默放行，无额外行为。
-    Bypass,
-    /// 全自动模式 (You Only Live Once)。跳过所有权限确认，与 Bypass 放行行为相同。
-    /// 额外行为: 退出时自动生成 Session 摘要 (Flash, max 500 tokens),
-    /// 若 YOLO 中执行了 git commit → 摘要自动作为 commit message 候选。
-    /// 参考 Claude Code 的 YOLO 模式 + Decision 13。
+    /// 规划模式。仅允许只读工具 (file_read, grep, glob)，写入和网络操作拒绝。
+    Plan,
+    /// 全自动模式。跳过所有权限确认，危险命令检测仍然生效。
     Yolo,
+    /// 对话模式。拒绝所有工具调用，仅纯文本对话。等价于 /mode chat。
+    Chat,
 }
 
 /// 工具风险等级。决定是否触发权限检查。
@@ -155,6 +150,18 @@ pub enum ExecutionMode {
     Plan,    // 只读工具 + plan tool, 产出计划供审批, 通过后→Yolo执行
     Default, // 完整工具集, 破坏性操作需 ask_user 审批
     Yolo,    // 完整工具集, 自动批准所有操作
+}
+
+impl ExecutionMode {
+    /// Map ExecutionMode to PermissionMode for tool-level access control.
+    pub fn to_permission_mode(self) -> PermissionMode {
+        match self {
+            ExecutionMode::Chat => PermissionMode::Chat,
+            ExecutionMode::Plan => PermissionMode::Plan,
+            ExecutionMode::Default => PermissionMode::Default,
+            ExecutionMode::Yolo => PermissionMode::Yolo,
+        }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════

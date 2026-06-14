@@ -20,6 +20,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use aegis_code_graph::GraphStore;
 use serde::{Deserialize, Serialize};
 
 // ═══════════════════════════════════════════════════════════════
@@ -279,12 +280,55 @@ impl ProjectManager {
     }
 
     /// Full scan with tree-sitter code graph building.
-    /// Requires code-graph crate. Falls back to file-count-only scan on error.
+    /// Uses aegis-code-graph's IncrementalIndexer for AST parsing and graph storage.
+    /// Falls back to file-count-only scan if graph DB is unavailable.
     pub fn scan_with_graph(&self) -> Result<ScanResult, String> {
-        // This delegates to aegis-code-graph's IncrementalIndexer for full parsing.
-        // For now, fall through to lightweight scan.
-        // TODO: integrate aegis-code-graph::IncrementalIndexer
-        Ok(self.scan_files())
+        let graph_db = self.aegis_dir.join("graph.db");
+        match aegis_code_graph::SqliteGraphStore::open(&graph_db) {
+            Ok(store) => {
+                let store: std::sync::Arc<dyn aegis_code_graph::GraphStore> = std::sync::Arc::new(store);
+                let lang_registry = std::sync::Arc::new(aegis_code_graph::create_default_registry());
+                let parser = std::sync::Arc::new(aegis_code_graph::CodeParser::new(lang_registry.clone()));
+                let indexer = aegis_code_graph::IncrementalIndexer::new(store, parser, lang_registry);
+
+                match indexer.full_scan(&self.root) {
+                    Ok(result) => {
+                        // Enrich with language breakdown from file extension walk
+                        let mut lang_map: std::collections::HashMap<String, usize> =
+                            std::collections::HashMap::new();
+                        self.walk_project(&self.root, &mut |_, ext| {
+                            let lang = ext_to_language(ext);
+                            *lang_map.entry(lang.to_string()).or_insert(0) += 1;
+                        });
+                        let mut languages: Vec<LanguageCount> = lang_map
+                            .into_iter()
+                            .map(|(name, files)| LanguageCount {
+                                name,
+                                files,
+                                functions: 0, // per-symbol counts require store query
+                            })
+                            .collect();
+                        languages.sort_by(|a, b| b.files.cmp(&a.files));
+
+                        Ok(ScanResult {
+                            total_files: result.total_files,
+                            total_functions: 0,
+                            total_modules: 0,
+                            languages,
+                            duration_ms: result.elapsed_ms,
+                        })
+                    }
+                    Err(e) => {
+                        log::warn!("Graph scan failed, falling back to file-count scan: {e}");
+                        Ok(self.scan_files())
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!("Graph DB unavailable, using file-count scan: {e}");
+                Ok(self.scan_files())
+            }
+        }
     }
 
     /// Load all rule files from `.aegis/rules/`.

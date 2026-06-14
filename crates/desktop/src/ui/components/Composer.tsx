@@ -45,7 +45,7 @@ function PickerPopup({
       {items.map((c, i) => (
         <div key={c.id} className={`popup-item ${i === activeIdx ? "active" : ""}`}
           onMouseDown={e => { e.preventDefault(); onPick(c); }}>
-          {c.icon && <span style={{color:"var(--fg-muted)"}}>{c.icon}</span>}
+          {c.icon && <span className="text-muted">{c.icon}</span>}
           <span className="popup-item-label">{c.label}</span>
           {c.desc && <span className="popup-item-desc">{c.desc}</span>}
         </div>
@@ -119,7 +119,7 @@ function ModelReasoningPicker({
         onClick={() => setPopup(p => p === "model" ? null : "model")}
       >
         <span>{shortModelName(model)}</span>
-        <I.chevronRight style={{width:12,height:12,transform:"rotate(90deg)",opacity:0.5}} />
+        <I.chevronRight className="chevron-flip" />
       </button>
       <span className="model-reasoning-sep">·</span>
       <button
@@ -180,7 +180,23 @@ export function Composer({
   const [slashIdx, setSlashIdx] = useState(0);
   const [slashFiltered, setSlashFiltered] = useState<SlashCmd[]>([]);
   const [draft, setDraft] = useState(""); // local draft, sync to parent only on submit
+  const [gitBranch, setGitBranch] = useState<string | null>(null);
   const rafRef = useRef(0);
+
+  // Read git branch from .git/HEAD
+  useEffect(() => {
+    if (!cwd) return;
+    const read = async () => {
+      try {
+        const headPath = `${cwd}/.git/HEAD`.replace(/\\/g, "/");
+        const resp = await fetch(`file://${headPath}`);
+        const text = await resp.text();
+        const match = text.match(/ref: refs\/heads\/(.+)/);
+        setGitBranch(match ? match[1] : text.trim().slice(0, 7));
+      } catch { setGitBranch(null); }
+    };
+    read();
+  }, [cwd]);
 
   // Sync parent prompt → local draft when parent changes externally
   useEffect(() => { setDraft(prompt); }, [prompt]);
@@ -271,6 +287,7 @@ export function Composer({
           <div className="composer-controls">
             <div className="composer-controls-left">
               {cwd && <span className="composer-chip"><I.folder />{cwd.split(/[\\/]/).pop() || cwd}</span>}
+              {gitBranch && <span className="git-branch-chip">{gitBranch}</span>}
               <button className="composer-chip" onClick={() => setPopup(p => p === "command" ? null : "command")}>
                 <I.command />命令
               </button>
@@ -281,7 +298,7 @@ export function Composer({
                 <I.file />文件
               </button>
             </div>
-            <span style={{flex:1}} />
+            <span className="spacer" />
             <ModelReasoningPicker
               model={model}
               reasoningEffort={reasoningEffort}

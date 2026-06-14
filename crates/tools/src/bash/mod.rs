@@ -225,7 +225,7 @@ impl BashTool {
         if !stdout.is_empty() {
             if stdout.len() > MAX_BASH_OUTPUT_CHARS {
                 blocks.push(ContentBlock::FileReference {
-                    path: ".agent/bash_stdout.txt".into(),
+                    path: ".aegis/tmp/bash_stdout.txt".into(),
                     preview: stdout.chars().take(500).collect(),
                     total_bytes: stdout.len() as u64,
                 });

@@ -633,9 +633,9 @@ mod tests {
     #[test]
     fn save_roundtrips_auto_permission_mode() {
         let mut document = Value::Object(Map::new());
-        set_default_permission_mode(&mut document, DefaultPermissionMode::Auto);
+        set_default_permission_mode(&mut document, DefaultPermissionMode::Plan);
 
-        assert_eq!(default_permission_mode(&document), Ok(DefaultPermissionMode::Auto));
+        assert_eq!(default_permission_mode(&document), Ok(DefaultPermissionMode::Plan));
     }
 
     #[test]

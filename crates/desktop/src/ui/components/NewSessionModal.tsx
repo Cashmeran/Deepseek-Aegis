@@ -27,29 +27,29 @@ export function NewSessionModal({
         </div>
         <div className="modal-field">
           <label>工作目录</label>
-          <div style={{display:"flex",gap:8}}>
-            <input className="input" value={cwd} onChange={e => setCwd(e.target.value)} placeholder="留空使用当前目录" style={{flex:1}} disabled={scanning} />
-            <button className="btn btn-ghost" onClick={pickDir} style={{flexShrink:0}} disabled={scanning}><I.folder /> 选择</button>
+          <div className="flex-center gap-sm">
+            <input className="input flex-1" value={cwd} onChange={e => setCwd(e.target.value)} placeholder="留空使用当前目录" disabled={scanning} />
+            <button className="btn btn-ghost" onClick={pickDir} disabled={scanning}><I.folder /> 选择</button>
           </div>
         </div>
         <div className="modal-field">
-          <label>描述 <span style={{color:"var(--fg-muted)",fontWeight:400}}>(选填，留空直接创建空项目)</span></label>
+          <label>描述 <span className="text-muted" style={{ fontWeight: 400 }}>(选填，留空直接创建空项目)</span></label>
           <textarea className="textarea" rows={2} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="描述你要做什么，留空可创建后再说…" disabled={scanning} />
         </div>
         {scanning && (
-          <div style={{padding:"10px 0",display:"flex",alignItems:"center",gap:10}}>
+          <div className="flex-center gap-sm" style={{ padding: "10px 0" }}>
             <div className="dot-pulse" />
-            <span style={{fontSize:13,color:"var(--fg-secondary)"}}>正在初始化项目，扫描文件中…</span>
+            <span className="text-sm text-secondary">正在初始化项目，扫描文件中…</span>
           </div>
         )}
         {scanResult && !scanning && (
-          <div style={{padding:"8px 12px",background:"var(--bg-hover)",borderRadius:"var(--radius-sm)",marginBottom:8}}>
-            <div style={{fontSize:12,fontWeight:600,marginBottom:4,color:"var(--fg-primary)"}}>
+          <div className="scan-result-card">
+            <div className="scan-result-title">
               扫描完成 · {scanResult.total_files} 文件 · {scanResult.duration_ms}ms
             </div>
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+            <div className="scan-result-langs">
               {scanResult.languages.map(l => (
-                <span key={l.name} style={{fontSize:11,color:"var(--fg-muted)"}}>{l.name}: {l.files}</span>
+                <span key={l.name} className="scan-result-lang">{l.name}: {l.files}</span>
               ))}
             </div>
           </div>
@@ -68,11 +68,11 @@ export function AboutModal({ onClose }: { onClose: () => void }): ReactElement {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-title">关于 Aegis Desktop</div>
-        <div style={{fontSize:13,color:"var(--fg-secondary)",lineHeight:1.7}}>
+        <div className="text-sm text-secondary" style={{ lineHeight: 1.7 }}>
           <p>Aegis Desktop v0.2.0</p>
           <p>基于 DeepSeek 的 AI 编程助手桌面客户端</p>
-          <p style={{marginTop:12,fontSize:12,color:"var(--fg-muted)"}}>
-            Powered by <span style={{fontWeight:600,color:"var(--accent-text)"}}>Aegis Engine</span> · Tauri v2 · React 19
+          <p className="text-xs text-muted" style={{ marginTop: 12 }}>
+            Powered by <span style={{ fontWeight: 600, color: "var(--accent-text)" }}>Aegis Engine</span> · Tauri v2 · React 19
           </p>
         </div>
         <div className="modal-actions"><button className="btn btn-ghost" onClick={onClose}>关闭</button></div>

@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 //
 // 参考: cc源码/skills/loadSkillsDir.ts + bundledSkills.ts
 //
-// 格式: .agent/skills/<skill-name>/SKILL.md (目录格式，唯一支持)
+// 格式: .aegis/skills/<skill-name>/SKILL.md (目录格式，唯一支持)
 // 优先级: 深层目录 > 浅层目录 (先加载者胜)
-// 加载源: project (.agent/skills/) > user (~/.aegis/skills/) > bundled
+// 加载源: project (.aegis/skills/) > user (~/.aegis/skills/) > bundled
 // ═══════════════════════════════════════════════════════════════
 
 /// YAML frontmatter 元数据。parseSkillFrontmatterFields()。
@@ -126,7 +126,7 @@ pub struct Skill {
 /// 加载来源枚举。LoadedFrom。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoadedFrom {
-    /// `.agent/skills/<name>/SKILL.md`
+    /// `.aegis/skills/<name>/SKILL.md`
     Skills,
     /// `~/.aegis/skills/<name>/SKILL.md`
     User,
@@ -228,7 +228,7 @@ impl Skill {
 ///
 /// getSkillDirCommands() 的多源加载 + 去重逻辑:
 /// - 深层目录的 skills 优先于浅层 (先加载者胜)
-/// - Project (.agent/skills/) > User (~/.aegis/skills/) > Bundled
+/// - Project (.aegis/skills/) > User (~/.aegis/skills/) > Bundled
 /// - 条件 Skills (paths frontmatter) 暂存，匹配文件时激活
 pub struct SkillRegistry {
     /// 激活的 Skills (name → Skill)
@@ -253,7 +253,7 @@ impl SkillRegistry {
     // ═══════════════════════════════════════════════
 
     /// 从项目目录树加载 Skills。
-    /// 对齐 CC: 从 cwd 向上走到根，扫描每个 `.agent/skills/` 目录。
+    /// 对齐 CC: 从 cwd 向上走到根，扫描每个 `.aegis/skills/` 目录。
     /// 深层优先 (先加载者胜)。
     pub fn load_project_skills(&mut self, cwd: &str) -> Result<usize, std::io::Error> {
         let mut count = 0;
@@ -262,7 +262,7 @@ impl SkillRegistry {
         // 收集从 cwd 到根的所有 .agent/skills 目录 (深层优先)
         let mut dirs = Vec::new();
         loop {
-            let skills_dir = current.join(".agent").join("skills");
+            let skills_dir = current.join(".aegis").join("skills");
             if skills_dir.is_dir() {
                 dirs.push(skills_dir);
             }
@@ -587,8 +587,8 @@ mod tests {
         let root = std::env::temp_dir().join("aegis_skill_priority");
         let _ = std::fs::remove_dir_all(&root);
 
-        let deep = root.join("deep").join(".agent").join("skills");
-        let shallow = root.join(".agent").join("skills");
+        let deep = root.join("deep").join(".aegis").join("skills");
+        let shallow = root.join(".aegis").join("skills");
         std::fs::create_dir_all(&deep).unwrap();
         std::fs::create_dir_all(&shallow).unwrap();
 

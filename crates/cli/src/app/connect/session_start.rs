@@ -228,16 +228,16 @@ mod tests {
     }
 
     #[test]
-    fn persisted_launch_settings_include_auto_permission_mode() {
+    fn persisted_launch_settings_include_plan_permission_mode() {
         let mut app = App::test_default();
         store::set_default_permission_mode(
             &mut app.config.committed_settings_document,
-            DefaultPermissionMode::Auto,
+            DefaultPermissionMode::Plan,
         );
 
         let launch_settings = session_launch_settings_for_reason(&app, SessionStartReason::Startup);
 
-        assert_permission_mode(&launch_settings, "auto");
+        assert_permission_mode(&launch_settings, "plan");
     }
 
     #[test]

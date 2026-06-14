@@ -106,10 +106,121 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
     registry.register(Arc::new(LspTool::new(lsp_root))).ok();
 
     // Infrastructure
-    registry.register(Arc::new(SkillTool::new())).ok();
-    registry.register(Arc::new(AgentTool::new())).ok();
     registry.register(Arc::new(ConfigTool::new())).ok();
     registry.register(Arc::new(ToolSearchTool::new())).ok();
+    registry.register(Arc::new(SleepTool::new())).ok();
+
+    // Task management
+    registry.register(Arc::new(TaskOutputTool::new())).ok();
+    registry.register(Arc::new(TaskStopTool::new())).ok();
+
+    // Cron
+    let cron_store = CronStore::new();
+    registry.register(Arc::new(CronCreateTool::new(cron_store.clone()))).ok();
+    registry.register(Arc::new(CronDeleteTool::new(cron_store.clone()))).ok();
+    registry.register(Arc::new(CronListTool::new(cron_store))).ok();
+
+    // Skill system — with backend wired to load project + user skills
+    {
+        let mut skills = aegis_core::skills::SkillRegistry::new();
+        skills.register_bundled(
+            "code-review", "Review code for bugs and improvements",
+            "## Code Review\nWhen reviewing code:\n1. Check correctness\n2. Check edge cases\n3. Check security\n4. Check performance",
+            Some("When user asks for code review"),
+        );
+        skills.register_bundled(
+            "debugging", "Systematic debugging workflow",
+            "## Debugging\n1. Reproduce\n2. Isolate\n3. Hypothesize\n4. Test hypothesis\n5. Fix root cause\n6. Add regression test",
+            Some("When user reports a bug"),
+        );
+        if let Some(dir) = cwd { let _ = skills.load_project_skills(dir); }
+        let sreg = Arc::new(skills);
+        let sreg2 = Arc::clone(&sreg);
+        let skill_tool = Arc::new(SkillTool::new().with_backend(
+            Arc::new(move |name: &str, _args: &str| -> String {
+                if let Some(skill) = sreg2.get(name) {
+                    format!("## Skill Loaded: {}\n\n{}\n\nFollow the instructions above.", skill.name, skill.content)
+                } else {
+                    format!("Skill '{}' not found. Available: {}",
+                        name, sreg2.list().iter().map(|(n, _, _)| n.as_str()).collect::<Vec<_>>().join(", "))
+                }
+            })
+        ));
+        registry.register(skill_tool).ok();
+    }
+
+    // AgentTool — sub-agent spawning with limited tool set
+    {
+        let agent_llm = Arc::clone(&llm);
+        let agent_registry = Arc::clone(&registry);
+        let agent_sp = Arc::clone(&sp);
+        let agent_config = config.clone();
+        let runner: aegis_tools::agent::SubagentRunner = Arc::new(move |def: aegis_core::agent::AgentDefinition, prompt: String| {
+            let llm2 = Arc::clone(&agent_llm);
+            let reg2 = Arc::clone(&agent_registry);
+            let sp2 = Arc::clone(&agent_sp);
+            let cfg2 = agent_config.clone();
+            Box::pin(async move {
+                let sub_config = {
+                    let mut c = cfg2.clone();
+                    if let Some(ref m) = def.model { c.default_model = m.clone(); }
+                    if let Some(t) = def.max_turns { c.max_turns = t; }
+                    c.verify_before_output = false;
+                    c
+                };
+                let sub_reg = Arc::new(aegis_core::tool_system::ToolRegistry::new());
+                let allow = def.tools.as_ref();
+                let disallow: std::collections::HashSet<&str> = def.disallowed_tools.iter().map(|s| s.as_str()).collect();
+                for name in &reg2.tool_names() {
+                    let skip = if let Some(a) = allow { !a.contains(name) } else { false };
+                    if skip || disallow.contains(name.as_str()) { continue; }
+                    if let Some(tool) = reg2.get_clone(name) { let _ = sub_reg.register(tool); }
+                }
+                let sub_sp = Arc::new(aegis_core::agent::system_prompt::SystemPromptBuilder::new(sub_config.clone()));
+                let start = std::time::Instant::now();
+                let agent_model = def.model.clone().unwrap_or_else(|| "inherit".into());
+                let mut sub = aegis_core::agent::AgentLoop::<aegis_core::llm::deepseek::DeepSeekClient>::new(
+                    sub_config, llm2, sub_reg, sub_sp,
+                );
+                match sub.run(&prompt).await {
+                    Ok(o) => aegis_core::agent::SubagentResult {
+                        agent_name: def.name.clone(), output: o.content, tokens_used: 0,
+                        elapsed_ms: start.elapsed().as_millis() as u64, error: None,
+                        model: agent_model.clone(),
+                    },
+                    Err(e) => aegis_core::agent::SubagentResult {
+                        agent_name: def.name, output: String::new(), tokens_used: 0,
+                        elapsed_ms: start.elapsed().as_millis() as u64,
+                        error: Some(e.to_string()), model: agent_model,
+                    },
+                }
+            })
+        });
+        let customs = aegis_core::agent::load_agents_dir(
+            &cwd.map(std::path::PathBuf::from).unwrap_or_default()
+        );
+        registry.register(Arc::new(AgentTool::new().with_customs(customs).with_runner(runner))).ok();
+    }
+
+    // MCP system
+    {
+        let mcp_mgr = Arc::new(aegis_mcp::McpConnectionManager::new());
+        if let Some(dir) = cwd {
+            let mcp_config = aegis_mcp::load_mcp_config(&std::path::PathBuf::from(dir)).unwrap_or_default();
+            if !mcp_config.mcp_servers.is_empty() {
+                mcp_mgr.configure(mcp_config.mcp_servers);
+                let mgr2 = Arc::clone(&mcp_mgr);
+                tokio::spawn(async move { mgr2.connect_all(); });
+            }
+        }
+        registry.register(Arc::new(aegis_mcp::McpToolImpl::new(Arc::clone(&mcp_mgr)))).ok();
+        registry.register(Arc::new(aegis_mcp::ListMcpResourcesTool::new(Arc::clone(&mcp_mgr)))).ok();
+        registry.register(Arc::new(aegis_mcp::ReadMcpResourceTool::new(mcp_mgr))).ok();
+    }
+
+    // Worktree
+    registry.register(Arc::new(EnterWorktreeTool::new())).ok();
+    registry.register(Arc::new(ExitWorktreeTool::new())).ok();
 
     // Computer use (Windows desktop automation) — only if enabled in project config
     if cwd.map_or(false, |dir| {
@@ -139,7 +250,8 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
     // Opens/creates .aegis/memory.db, initializes schema.
     // Retrieval is tool-mediated: the agent uses the Remember tool to
     // record and query memories. The callback provides recent context.
-    let memory_db_path = project_db_path(cwd, "memory.db");
+    let memory_db_path = project_db_path(cwd, "memory/memory.db");
+    let _ = std::fs::create_dir_all(memory_db_path.parent().unwrap_or(std::path::Path::new(".")));
     if let Ok(store) = aegis_memory::SqliteMemoryStore::open(&memory_db_path) {
         let mem_store = Arc::new(store);
         let mem_retrieve = {
@@ -153,7 +265,7 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
 
     // ── Code graph (built on project scan, queried via LSP/file tools) ──
     if let Some(dir) = cwd {
-        let graph_db_path = project_db_path(Some(dir), "graph.db");
+        let graph_db_path = project_db_path(Some(dir), "code-graph/graph.db");
         if !graph_db_path.exists() {
             // Graph will be built on first project_scan in the background
             log::info!("graph.db not found, will build on first scan");
@@ -501,7 +613,7 @@ async fn run_agent_turn(
 
 /// Replay saved frontend messages into a fresh AgentLoop's conversation state.
 fn replay_conversation(
-    agent: &mut aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>,
+    agent: &mut crate::state::SessionAgent,
     messages: &[serde_json::Value],
 ) {
     use aegis_core::types::message::Message;
@@ -541,7 +653,7 @@ fn replay_conversation(
 fn save_session_to_disk(
     cwd: &str,
     session_id: &str,
-    agent: &aegis_core::agent::AgentLoop<aegis_core::llm::deepseek::DeepSeekClient>,
+    agent: &crate::state::SessionAgent,
 ) {
     use aegis_core::types::message::Message;
     let sessions_dir = std::path::Path::new(cwd).join(".aegis").join("sessions");

@@ -1,4 +1,3 @@
-pub mod confidence;
 pub mod context;
 pub mod conversation;
 pub mod harness;
@@ -9,7 +8,6 @@ pub mod output;
 pub mod subagent;
 pub mod system_prompt;
 
-pub use confidence::{ConfidenceScorer, ConfidenceWeights, ThoughtTreeFeatures};
 pub use context::{ContextManager, FoldAction, FoldResult};
 pub use conversation::ConversationState;
 pub use harness::{AcceptanceCriterion, SprintContract};

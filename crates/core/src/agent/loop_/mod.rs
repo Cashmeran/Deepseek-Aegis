@@ -8,7 +8,6 @@
 //!
 //! 大型方法已拆分到子模块: run / streaming / execution / verification / retry
 
-use crate::agent::confidence::ConfidenceScorer;
 use crate::agent::context::ContextManager;
 use crate::agent::conversation::ConversationState;
 use crate::agent::harness::SprintContract;
@@ -62,8 +61,6 @@ pub struct AgentLoop<L: LlmClient> {
     pub(crate) already_folded_this_turn: bool,
     /// 当前执行模式
     pub(crate) mode: ExecutionMode,
-    /// 信心评分器 (基于 CoT 结构特征)
-    pub(crate) confidence_scorer: ConfidenceScorer,
     /// 工具调用修复管线 (4-pass: Scavenge/Truncation/Storm/Flatten)
     pub(crate) repair: ToolCallRepair,
     /// 代码评分器 (trait in core, impl from external or RuleBasedScorer)
@@ -82,6 +79,7 @@ pub struct AgentLoop<L: LlmClient> {
     pub(crate) skill_injection: Option<String>,
     /// 项目规则注入文本 (从 .aegis/rules/*.md 加载)
     pub(crate) project_rules: Option<String>,
+    pub(crate) project_knowledge: Option<String>,
     /// 代码库概览 (codebase overview, 启动时生成)
     pub(crate) codebase_overview: Option<String>,
     /// 当前轮的任务追踪列表
@@ -117,7 +115,6 @@ impl<L: LlmClient> AgentLoop<L> {
             active_contract: None,
             already_folded_this_turn: false,
             mode: ExecutionMode::Default,
-            confidence_scorer: ConfidenceScorer::new(),
             repair: ToolCallRepair::new(),
             code_scorer: None,
             memory_retrieve: None,
@@ -127,6 +124,7 @@ impl<L: LlmClient> AgentLoop<L> {
             shared_config: None,
             skill_injection: None,
             project_rules: None,
+            project_knowledge: None,
             codebase_overview: None,
             active_todos: Vec::new(),
             phase: HarnessPhase::Generator,
@@ -182,6 +180,15 @@ impl<L: LlmClient> AgentLoop<L> {
         else { self.project_rules = Some(rules); }
     }
 
+    pub fn with_project_knowledge(mut self, knowledge: String) -> Self {
+        self.project_knowledge = Some(knowledge); self
+    }
+
+    pub fn set_project_knowledge(&mut self, knowledge: String) {
+        if knowledge.is_empty() { self.project_knowledge = None; }
+        else { self.project_knowledge = Some(knowledge); }
+    }
+
     pub fn append_skill_injection(&mut self, injection: &str) {
         if let Some(ref mut existing) = self.skill_injection {
             existing.push_str("\n\n");
@@ -220,7 +227,6 @@ impl<L: LlmClient> AgentLoop<L> {
             self.config.web_search_enabled = c.web_search_enabled;
             self.config.reasoning_effort = c.reasoning_effort.clone();
             self.config.verify_before_output = c.verify_before_output;
-            self.config.auto_model_routing = c.auto_model_routing;
             self.config.snapshots_enabled = c.snapshots_enabled;
         }
     }
@@ -310,11 +316,13 @@ impl<L: LlmClient> AgentLoop<L> {
             let graph = graph_ctx.map(|s| s.to_string());
             let skills = self.skill_injection.clone();
             let rules = self.project_rules.clone();
+            let knowledge = self.project_knowledge.clone();
             let mut parts: Vec<String> = Vec::new();
             if let Some(ref o) = overview { if !o.is_empty() { parts.push(o.clone()); } }
             if let Some(ref m) = memory { if !m.is_empty() { parts.push(m.clone()); } }
             if let Some(ref g) = graph { if !g.is_empty() { parts.push(g.clone()); } }
             if let Some(ref r) = rules { if !r.is_empty() { parts.push(format!("## Project Rules\n{r}")); } }
+            if let Some(ref k) = knowledge { if !k.is_empty() { parts.push(format!("## Project Knowledge\n{k}")); } }
             if let Some(ref s) = skills { if !s.is_empty() { parts.push(s.clone()); } }
             if parts.is_empty() { None } else { Some(parts.join("\n\n")) }
         };
@@ -596,16 +604,6 @@ mod tests {
         assert!(!is_word_match("edit", "expedite delivery"));
         assert!(!is_word_match("edit", "new edition"));
         assert!(!is_word_match("fix", "prefix value"));
-    }
-
-    #[test]
-    fn test_score_to_level() {
-        assert_eq!(score_to_level(0.95), crate::agent::output::ConfidenceLevel::High);
-        assert_eq!(score_to_level(0.9), crate::agent::output::ConfidenceLevel::High);
-        assert_eq!(score_to_level(0.75), crate::agent::output::ConfidenceLevel::Medium);
-        assert_eq!(score_to_level(0.6), crate::agent::output::ConfidenceLevel::Medium);
-        assert_eq!(score_to_level(0.3), crate::agent::output::ConfidenceLevel::Low);
-        assert_eq!(score_to_level(0.0), crate::agent::output::ConfidenceLevel::Low);
     }
 
     #[tokio::test]

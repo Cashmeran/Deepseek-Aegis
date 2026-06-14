@@ -29,7 +29,7 @@ impl SnapshotManager {
     pub fn new(config: SnapshotConfig) -> Self {
         Self {
             config,
-            snapshot_dir: PathBuf::from(".agent/snapshots"),
+            snapshot_dir: PathBuf::from(".aegis/snapshots"),
             initialized: false,
         }
     }

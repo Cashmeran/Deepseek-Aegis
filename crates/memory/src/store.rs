@@ -19,6 +19,7 @@ pub trait MemoryStore: Send + Sync {
     // CRUD
     fn record_bug(&self, bug: &Bug) -> AgentResult<MemoryNodeId>;
     fn record_fix(&self, fix: &Fix, bug_id: &MemoryNodeId) -> AgentResult<MemoryNodeId>;
+    fn record_fix_no_bug(&self, fix: &Fix) -> AgentResult<MemoryNodeId>;
     fn record_root_cause(&self, rc: &RootCause, bug_ids: &[MemoryNodeId]) -> AgentResult<MemoryNodeId>;
     fn upsert_insight(&self, insight: &Insight, episode_ids: &[MemoryNodeId]) -> AgentResult<MemoryNodeId>;
     fn get_node(&self, id: &MemoryNodeId) -> AgentResult<Option<MemoryNode>>;
@@ -34,6 +35,7 @@ pub trait MemoryStore: Send + Sync {
     fn get_neighborhood(&self, node_id: &MemoryNodeId, max_depth: usize) -> AgentResult<Vec<(MemoryNodeId, MemoryEdgeType, f32)>>;
     fn find_similar_bugs(&self, embedding: &[f32], limit: usize) -> AgentResult<Vec<(Bug, f32)>>;
     fn find_related_insights(&self, bug_id: &MemoryNodeId) -> AgentResult<Vec<Insight>>;
+    fn get_recent_insights(&self, limit: usize) -> AgentResult<Vec<Insight>>;
 
     // Query helpers
     fn count_similar_patterns(&self, episode: &Episode) -> AgentResult<u32>;
@@ -195,6 +197,13 @@ impl MemoryStore for SqliteMemoryStore {
         Ok(fix.id.clone())
     }
 
+    fn record_fix_no_bug(&self, fix: &Fix) -> AgentResult<MemoryNodeId> {
+        let c = self.lock();
+        let json = serde_json::to_string(fix).map_err(|e| AgentError::Internal(format!("serialize: {}", e)))?;
+        self.insert_node(&c, &fix.id, MemoryNodeType::Fix, &json)?;
+        Ok(fix.id.clone())
+    }
+
     fn record_root_cause(&self, rc: &RootCause, bug_ids: &[MemoryNodeId]) -> AgentResult<MemoryNodeId> {
         let c = self.lock();
         let json = serde_json::to_string(rc).map_err(|e| AgentError::Internal(format!("serialize: {}", e)))?;
@@ -347,6 +356,16 @@ impl MemoryStore for SqliteMemoryStore {
             }
         }
         Ok(results)
+    }
+
+    fn get_recent_insights(&self, limit: usize) -> AgentResult<Vec<Insight>> {
+        let c = self.lock();
+        let mut stmt = c.prepare_cached(
+            "SELECT content FROM memory_nodes WHERE node_type=?1 ORDER BY updated_at DESC LIMIT ?2"
+        ).map_err(|e| AgentError::Internal(format!("prep: {}", e)))?;
+        let rows = stmt.query_map(params![MemoryNodeType::Insight.to_u8(), limit], Self::get_insight_from_row)
+            .map_err(|e| AgentError::Internal(format!("query: {}", e)))?;
+        Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
     fn find_related_insights(&self, bug_id: &MemoryNodeId) -> AgentResult<Vec<Insight>> {

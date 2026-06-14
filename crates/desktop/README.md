@@ -1,102 +1,64 @@
-<div align="center">
+# Aegis Desktop
 
-# open-cowork
+Aegis 的桌面客户端，基于 Tauri v2 + React 构建。
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/jiji262/open-cowork/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/jiji262/open-cowork/releases)
+## 概述
 
-</div>
+- 本地优先的桌面编程代理环境，工具执行全程可见
+- 基于会话的工作流，绑定工作目录
+- 流式输出，Markdown 实时渲染
+- DeepSeek 后端，支持 reasoning_content 的 SSE 流式传输
+- 显式权限审批，危险操作需用户确认
 
-open-cowork is an open-source desktop AI collaboration workspace built with Tauri and React. It brings agent-style workflows to the desktop with explicit permissions, streaming output, and session-based context for everyday tasks and development work.
+## 功能
 
-## Overview
+- 桌面原生 UI，低开销
+- Token 流式传输 + 推理过程实时展示
+- 工具调用卡片（展开/折叠、耗时、状态）
+- 多执行模式：Chat / Plan / Default / Yolo
+- 会话持久化，支持 `/resume` 恢复
+- 深色主题，Aegis 设计语言
 
-- Local-first desktop agent environment with visible tool execution
-- Session-based workflows with working directory binding
-- Streaming output and Markdown rendering for long-running tasks
-- Provider-agnostic support for Anthropic and OpenAI APIs
+## 快速开始（源码构建）
 
-## Demo
+### 环境要求
 
-[![Demo video](https://img.youtube.com/vi/xZcm3pDD9NA/0.jpg)](https://youtu.be/xZcm3pDD9NA)
+- Node.js 18+ 或 Bun
+- Rust 工具链 (cargo)
+- Tauri CLI (`cargo install tauri-cli`)
 
-## Features
-
-- Desktop-first UI with low overhead
-- Multi-provider support (Anthropic/OpenAI)
-- Token streaming with Markdown rendering
-- Tool execution with approval modes
-- Session management with working directory binding
-
-## Download
-
-- Releases: https://github.com/jiji262/open-cowork/releases
-
-## Quick Start (Source)
-
-### Requirements
-
-- Node.js 18+ or Bun
-- Rust toolchain (cargo)
-- Tauri CLI (cargo tauri)
-
-### Install and Run
+### 安装运行
 
 ```bash
-git clone https://github.com/jiji262/open-cowork.git
-cd open-cowork
+cd crates/desktop
 
-bun install
-bun run tauri:dev
+npm install
+npm run tauri:dev
 ```
 
-### Build (Binary)
+### 打包
 
 ```bash
-bun run tauri:build
+npm run tauri:build
 ```
 
-## Provider Setup
+## 技术栈
 
-Open the settings panel and configure API keys and model names:
-
-- Anthropic: `claude-sonnet-4-5-20250929`
-- OpenAI: `gpt-4o`, `gpt-4.1`
-
-Settings are stored locally on the machine.
-
-## Security Model
-
-- Tool calls are visible in the UI
-- Approval modes: auto-run or ask first
-- Confirm before destructive actions
-
-## Tech Stack
-
-| Layer | Tech |
+| 层 | 技术 |
 | --- | --- |
-| Desktop | Tauri 2.x |
-| UI | React 19 + Tailwind CSS 4 |
+| Desktop | Tauri v2 |
+| UI | React 19 + Tailwind CSS |
 | State | Zustand |
-| Backend | Rust + Tauri commands |
-| AI | @anthropic-ai/claude-agent-sdk + provider APIs |
+| Backend | Rust (Tauri commands + aegis-core) |
+| AI | DeepSeek API (anthropic-compatible endpoint) |
 | Build | Vite + Cargo |
 
-## Roadmap
+## 安全模型
 
-- Persisted session history
-- More provider integrations
-- Stronger sandboxing and policy control
-
-## Contributing
-
-Pull requests and issues are welcome:
-
-1. Fork the repo
-2. Create a feature branch
-3. Commit your changes
-4. Open a PR
+- 工具调用在 UI 中可见
+- 审批模式：auto-run 或 ask first
+- 破坏性操作（rm -rf, git push --force 等）默认拦截
 
 ## License
 
-MIT
+Apache 2.0 — 与主项目一致。
