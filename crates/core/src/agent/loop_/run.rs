@@ -78,6 +78,9 @@ impl<L: LlmClient> AgentLoop<L> {
                 crate::agent::context::FoldAction::None => {}
             }
 
+            // P3: Flush pending steer at turn boundary (after previous turn settled)
+            self.flush_steer();
+
             let response = match self.call_llm_with_recovery(user_input).await {
                 Ok(r) => r,
                 Err(e) => {
@@ -175,50 +178,10 @@ impl<L: LlmClient> AgentLoop<L> {
                             });
                         }
 
-                        let rescue_prompt = match self.self_rescue_rounds {
-                            1 => format!(
-                                "## Verification Failed — Round 1\n\n\
-                                Issues found:\n{}\n\n\
-                                Fix each issue carefully:\n\
-                                - Re-read the files you're modifying to confirm current state\n\
-                                - Run the tests to reproduce failures before fixing\n\
-                                - Check edge cases: empty input, null values, error paths\n\
-                                - After fixing, run tests again to verify",
-                                verified.details
-                            ),
-                            2 => format!(
-                                "## Still Failing — Round 2\n\n\
-                                Remaining issues:\n{}\n\n\
-                                Take a step back:\n\
-                                - Are you fixing the root cause or just symptoms?\n\
-                                - Run `cargo test` and paste the FULL output\n\
-                                - Check if existing tests actually cover your changes\n\
-                                - Look at git diff to confirm only intended files changed",
-                                verified.details
-                            ),
-                            3..=5 => format!(
-                                "## Still Failing — Round {}\n\n\
-                                {}\n\n\
-                                Try a different approach:\n\
-                                - Is there a simpler way to achieve the goal?\n\
-                                - Compare with how existing code handles similar cases\n\
-                                - If stuck on a specific error, isolate it to a minimal reproduction",
-                                self.self_rescue_rounds, verified.details
-                            ),
-                            _ => format!(
-                                "## Final Attempt — Round {}\n\n\
-                                {}\n\n\
-                                Last chance.\n\
-                                - Consider abandoning current approach and starting fresh\n\
-                                - Ask the user for clarification if needed\n\
-                                - Report what you tried and why it didn't work",
-                                self.self_rescue_rounds, verified.details
-                            ),
-                        };
-
+                        let prompt = self.trigger_fresh_rescue(self.self_rescue_rounds, &verified.details);
                         self.conversation
                             .add_message(Message::System(crate::types::message::SystemMessage {
-                                content: rescue_prompt,
+                                content: prompt,
                             }));
                         self.phase = HarnessPhase::Generator;
                         continue;

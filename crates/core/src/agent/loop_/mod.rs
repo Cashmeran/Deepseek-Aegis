@@ -89,6 +89,8 @@ pub struct AgentLoop<L: LlmClient> {
     pub(crate) phase: HarnessPhase,
     /// Pain6 自救计数器
     pub(crate) self_rescue_rounds: u32,
+    /// P3: pending steer for turn-boundary injection
+    pub(crate) pending_steer: Option<String>,
     /// Planner 阶段已执行轮数
     pub(crate) planner_turns: u32,
     /// Tool progress streaming callback
@@ -129,6 +131,7 @@ impl<L: LlmClient> AgentLoop<L> {
             active_todos: Vec::new(),
             phase: HarnessPhase::Generator,
             self_rescue_rounds: 0,
+            pending_steer: None,
             planner_turns: 0,
             tool_progress_tx: None,
         }
@@ -292,11 +295,49 @@ impl<L: LlmClient> AgentLoop<L> {
         self.skill_injection = Some(text);
     }
 
+    /// Fresh-context rescue: discard polluted conversation, save learnings, re-enter clean.
+    /// Returns the rescue prompt to inject as a SystemMessage.
+    pub(crate) fn trigger_fresh_rescue(&mut self, round: u32, details: &str) -> String {
+        // Save learnings to filesystem for future sessions
+        save_rescue_learnings(details, round);
+
+        // Save contract state before trimming (agent can reload from disk)
+        let contract_summary = self.active_contract.as_ref()
+            .map(|c| {
+                c.save_to_disk();
+                c.save_progress_md();
+                c.progress_summary()
+            })
+            .unwrap_or_default();
+
+        // Trim conversation to original user message (keeps system injections)
+        self.conversation.trim_to_user_input();
+
+        // Build fresh rescue prompt with contract context
+        fresh_rescue_prompt(round, details, &contract_summary)
+    }
+
+    /// Queue steer for turn-boundary injection. Does NOT inject immediately —
+    /// waits for current tool calls to settle, then injects before next LLM call.
     pub fn steer(&mut self, content: &str) {
-        const STEER_WRAPPER: &str = "[Mid-turn steer queued by the user. Do not treat this as a new task; \
-            use it only as additional guidance for the current task after completing the current step.]";
-        let wrapped = format!("{}\n\n{}", STEER_WRAPPER, content);
-        self.conversation.add_message(Message::System(SystemMessage { content: wrapped }));
+        let existing = self.pending_steer.take().unwrap_or_default();
+        let merged = if existing.is_empty() {
+            content.to_string()
+        } else {
+            format!("{}; also: {}", existing, content)
+        };
+        self.pending_steer = Some(merged);
+    }
+
+    /// Inject pending steer at turn boundary (called by run loop after tool batch completes).
+    pub(crate) fn flush_steer(&mut self) {
+        if let Some(steer_text) = self.pending_steer.take() {
+            let wrapped = format!(
+                "[Steer from user — adjust your approach: {}]",
+                steer_text
+            );
+            self.conversation.add_message(Message::System(SystemMessage { content: wrapped }));
+        }
     }
 
     // ── 系统提示构建 ──
@@ -347,6 +388,50 @@ impl<L: LlmClient> AgentLoop<L> {
             }));
         }
     }
+}
+
+// ══════════════ Fresh-context rescue helpers ══════════════
+
+/// Save failure learnings to `.aegis/tmp/learnings.md` for cross-session accumulation.
+fn save_rescue_learnings(details: &str, round: u32) {
+    let path = std::path::PathBuf::from(".aegis/tmp/learnings.md");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let entry = format!(
+        "## Rescue Round {} ({})\n- {}\n\n",
+        round,
+        chrono::Utc::now().format("%Y-%m-%d %H:%M"),
+        details.lines().take(10).collect::<Vec<_>>().join("\n- "),
+    );
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let new = if existing.len() > 32_000 {
+        format!("{}\n... (older truncated)\n{}", &entry, &existing[..16_000])
+    } else {
+        format!("{}{}", existing, entry)
+    };
+    let _ = std::fs::write(&path, new);
+}
+
+fn fresh_rescue_prompt(round: u32, details: &str, contract_summary: &str) -> String {
+    let summary: String = details.lines().take(5).map(|l| format!("- {}", l)).collect::<Vec<_>>().join("\n");
+    let mut prompt = format!(
+        "## Verification Failed — Round {}\n\n\
+        Issues detected by the verifier:\n{}\n\n",
+        round, summary,
+    );
+    if !contract_summary.is_empty() {
+        prompt.push_str(&format!(
+            "Your current plan state (saved to .aegis/tmp/contract.json):\n{}\n\n",
+            contract_summary
+        ));
+    }
+    prompt.push_str(
+        "Your previous attempt's context has been cleared — you have a fresh window. \
+         Read the relevant files to understand the current state, then fix each issue.\n\n\
+         After fixing, verify: cargo check && cargo test."
+    );
+    prompt
 }
 
 #[cfg(test)]

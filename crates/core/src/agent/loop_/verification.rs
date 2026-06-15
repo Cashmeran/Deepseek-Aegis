@@ -222,7 +222,48 @@ impl<L: LlmClient> AgentLoop<L> {
             }
 
             for criterion in &contract.acceptance_criteria {
-                if let Some(ref expected) = criterion.expected_output_contains {
+                // P2: Machine-verifiable exit — actually run the verification command
+                if !criterion.verification_command.is_empty() {
+                    match Self::run_acceptance_cmd(&criterion.verification_command) {
+                        Ok((exit_code, stdout, stderr)) => {
+                            let passed = exit_code == criterion.expected_exit_code;
+                            let output = format!("{}{}", stdout, stderr);
+                            if let Some(ref expected) = criterion.expected_output_contains {
+                                if !output.contains(expected) {
+                                    if !passed { blocking += 1; } else { advisory += 1; }
+                                    details.push(format!(
+                                        "Acceptance '{}': cmd `{}` exit={} (expected {}), \
+                                         expected '{}' not found in output",
+                                        criterion.description, criterion.verification_command,
+                                        exit_code, criterion.expected_exit_code, expected
+                                    ));
+                                    continue;
+                                }
+                            }
+                            if passed {
+                                details.push(format!(
+                                    "✅ Acceptance '{}': `{}` passed (exit {})",
+                                    criterion.description, criterion.verification_command, exit_code
+                                ));
+                            } else {
+                                blocking += 1;
+                                details.push(format!(
+                                    "Acceptance '{}': `{}` exit={} (expected {})",
+                                    criterion.description, criterion.verification_command,
+                                    exit_code, criterion.expected_exit_code
+                                ));
+                            }
+                        }
+                        Err(e) => {
+                            blocking += 1;
+                            details.push(format!(
+                                "Acceptance '{}': `{}` failed to run — {}",
+                                criterion.description, criterion.verification_command, e
+                            ));
+                        }
+                    }
+                } else if let Some(ref expected) = criterion.expected_output_contains {
+                    // Fallback: check output text for expected string (no command defined)
                     if !content.contains(expected) {
                         advisory += 1;
                         details.push(format!(
@@ -254,6 +295,21 @@ impl<L: LlmClient> AgentLoop<L> {
                 "All checks passed — no issues found.".into()
             ))
         }
+    }
+
+    /// Run an acceptance criterion's verification command and return (exit_code, stdout, stderr).
+    fn run_acceptance_cmd(command: &str) -> Result<(i32, String, String), String> {
+        let output = std::process::Command::new(if cfg!(windows) { "powershell" } else { "bash" })
+            .arg(if cfg!(windows) { "-Command" } else { "-c" })
+            .arg(command)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .map_err(|e| format!("{}", e))?;
+        let exit_code = output.status.code().unwrap_or(-1);
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Ok((exit_code, stdout, stderr))
     }
 
     /// 上下文溢出时退出并总结。

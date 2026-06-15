@@ -76,6 +76,9 @@ impl<L: LlmClient> AgentLoop<L> {
                 return self.exit_with_summary().await;
             }
 
+            // P3: Flush pending steer at turn boundary
+            self.flush_steer();
+
             let system = self.build_system_prompt(user_input);
             let messages = self.conversation.messages();
             let tools_json = self.registry.get_anthropic_tools_json();
@@ -225,48 +228,11 @@ impl<L: LlmClient> AgentLoop<L> {
                             self.self_rescue_rounds = 0;
                             return Ok(AgentOutput { content, confidence: ConfidenceLevel::Low, verification_report: Some(verified.report), summary: Some("Self-rescue exhausted".into()) });
                         }
-                        let rescue_prompt = match self.self_rescue_rounds {
-                            1 => format!(
-                                "## Verification Failed — Round 1\n\n\
-                                Issues found:\n{}\n\n\
-                                Fix each issue carefully:\n\
-                                - Re-read the files you're modifying to confirm current state\n\
-                                - Run the tests to reproduce failures before fixing\n\
-                                - Check edge cases: empty input, null values, error paths\n\
-                                - After fixing, run tests again to verify",
-                                verified.details
-                            ),
-                            2 => format!(
-                                "## Still Failing — Round 2\n\n\
-                                Remaining issues:\n{}\n\n\
-                                Take a step back:\n\
-                                - Are you fixing the root cause or just symptoms?\n\
-                                - Run `cargo test` and paste the FULL output\n\
-                                - Check if existing tests actually cover your changes\n\
-                                - Look at git diff to confirm only intended files changed",
-                                verified.details
-                            ),
-                            3..=5 => format!(
-                                "## Still Failing — Round {}\n\n\
-                                {}\n\n\
-                                Try a different approach:\n\
-                                - Is there a simpler way to achieve the goal?\n\
-                                - Compare with how existing code in the codebase handles similar cases\n\
-                                - If you're stuck on a specific error, isolate it to a minimal reproduction",
-                                self.self_rescue_rounds, verified.details
-                            ),
-                            _ => format!(
-                                "## Final Attempt — Round {}\n\n\
-                                {}\n\n\
-                                This is your last chance. Consider:\n\
-                                - Abandoning the current approach and starting fresh\n\
-                                - Asking the user for clarification or help\n\
-                                - Reporting what you tried and why it didn't work",
-                                self.self_rescue_rounds, verified.details
-                            ),
-                        };
                         self.phase = HarnessPhase::Generator;
-                        self.conversation.add_message(Message::System(crate::types::message::SystemMessage { content: rescue_prompt }));
+                        let prompt = self.trigger_fresh_rescue(self.self_rescue_rounds, &verified.details);
+                        self.conversation.add_message(Message::System(
+                            crate::types::message::SystemMessage { content: prompt }
+                        ));
                         continue;
                     }
                     self.self_rescue_rounds = 0;

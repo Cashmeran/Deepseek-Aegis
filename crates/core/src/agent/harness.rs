@@ -119,6 +119,62 @@ impl SprintContract {
         }).collect()
     }
 
+    /// Persist to .aegis/tmp/contract.json for fresh-context recovery.
+    pub fn save_to_disk(&self) {
+        let path = std::path::PathBuf::from(".aegis/tmp/contract.json");
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(json) = serde_json::to_string_pretty(self) {
+            let _ = std::fs::write(&path, json);
+        }
+    }
+
+    /// Load from .aegis/tmp/contract.json after context reset.
+    pub fn load_from_disk() -> Option<Self> {
+        let path = std::path::PathBuf::from(".aegis/tmp/contract.json");
+        std::fs::read_to_string(&path).ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+    }
+
+    /// Generate a concise progress summary for rescue prompt injection.
+    pub fn progress_summary(&self) -> String {
+        let (done, total) = self.progress();
+        let pending: Vec<&str> = self.tasks.iter()
+            .filter(|t| t.status != TaskState::Completed)
+            .map(|t| t.subject.as_str())
+            .collect();
+        let mut s = format!("**Plan**: '{}'\n", self.objective);
+        s.push_str(&format!("**Progress**: {}/{} tasks done\n", done, total));
+        if !pending.is_empty() {
+            s.push_str(&format!("**Remaining**: {}\n", pending.join(", ")));
+        }
+        if !self.expected_files.is_empty() {
+            s.push_str(&format!("**Expected files**: {}\n", self.expected_files.join(", ")));
+        }
+        s
+    }
+
+    /// Save progress markdown to .aegis/tmp/progress.md for human review.
+    pub fn save_progress_md(&self) {
+        let path = std::path::PathBuf::from(".aegis/tmp/progress.md");
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let mut s = format!("# Plan: {}\n\n", self.objective);
+        for t in &self.tasks {
+            let icon = match t.status {
+                TaskState::Completed => "✅",
+                TaskState::InProgress => "🔄",
+                TaskState::Blocked => "🚫",
+                TaskState::Pending => "⬜",
+            };
+            s.push_str(&format!("{} {}\n", icon, t.subject));
+        }
+        s.push_str(&format!("\n_{}/{} tasks done_\n", self.progress().0, self.progress().1));
+        let _ = std::fs::write(&path, s);
+    }
+
     /// Sync task status from todo_write items (called after each todo_write call).
     pub fn sync_todos(&mut self, todos: &[(String, TodoStatus)]) {
         let status_map: HashMap<&str, TaskState> = todos.iter().map(|(subj, status)| {
@@ -134,6 +190,9 @@ impl SprintContract {
                 task.status = new_state;
             }
         }
+        // Auto-save to filesystem after every todo sync
+        self.save_to_disk();
+        self.save_progress_md();
     }
 
     /// Format plan for user presentation.

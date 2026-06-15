@@ -126,6 +126,29 @@ impl ConversationState {
     pub fn has_pending_tools(&self) -> bool {
         !self.pending_tools.is_empty()
     }
+
+    /// Trim conversation back to just the original user message + system messages.
+    /// Used for fresh-context retry: discard failed attempt context, keep only what the user asked.
+    /// Returns the count of messages removed.
+    pub fn trim_to_user_input(&mut self) -> usize {
+        use crate::types::message::Message;
+        let before = self.messages.len();
+
+        // Keep: system messages at the start + the first user message
+        // Discard: everything after (LLM responses, tool results, rescue prompts, etc.)
+        if let Some(first_user_idx) = self.messages.iter().position(|m| matches!(m, Message::User(_))) {
+            // Keep everything up to and including the first user message
+            self.messages.truncate(first_user_idx + 1);
+        }
+        // If no user message found, keep everything (shouldn't happen in normal flow)
+
+        self.pending_tools.clear();
+        let removed = before - self.messages.len();
+        if removed > 0 {
+            tracing::info!("Fresh-context retry: trimmed {} messages ({before} → {})", removed, self.messages.len());
+        }
+        removed
+    }
 }
 
 impl Default for ConversationState {
