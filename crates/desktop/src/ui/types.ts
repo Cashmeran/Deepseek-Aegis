@@ -49,6 +49,7 @@ export type ServerEvent =
   | { type: "session.list"; payload: { sessions: SessionInfo[] } }
   | { type: "session.history"; payload: { sessionId: string; status: SessionStatus; messages: StreamMessage[] } }
   | { type: "session.deleted"; payload: { sessionId: string } }
+  | { type: "session.cleared"; payload: { sessionId: string } }
   | { type: "ask_user"; payload: { sessionId: string; question: string; header: string; options: unknown[] } }
   | { type: "runner.error"; payload: { sessionId?: string; message: string } };
 
@@ -70,6 +71,9 @@ export type ClientEvent =
   | { type: "session.continue"; payload: { sessionId: string; prompt: string; messages?: StreamMessage[] } }
   | { type: "session.stop"; payload: { sessionId: string } }
   | { type: "session.delete"; payload: { sessionId: string } }
+  | { type: "session.compact"; payload: { sessionId: string } }
+  | { type: "session.clear"; payload: { sessionId: string } }
+  | { type: "session.goal"; payload: { sessionId: string; objective: string; criteria?: string } }
   | { type: "session.list" }
   | { type: "session.history"; payload: { sessionId: string } }
   | { type: "ask_user.response"; payload: { sessionId: string; answer: string } };

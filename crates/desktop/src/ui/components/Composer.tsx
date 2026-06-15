@@ -205,8 +205,10 @@ export function Composer({
     setDraft(val);
     const lines = val.split("\n");
     const last = lines[lines.length - 1];
-    if (last.startsWith("/") && !last.includes(" ") && last.length >= 2) {
-      const query = last.slice(1).toLowerCase();
+    if (last.startsWith("/") && last.length >= 2) {
+      // CC-style: /command args — extract command name before first space
+      const cmdName = last.split(" ")[0].slice(1).toLowerCase();
+      const query = cmdName;
       setSlashFiltered(slashCommands.filter(c => c.cmd.toLowerCase().includes(query)));
       setSlashIdx(0); setPopup("slash");
     } else {
@@ -251,8 +253,43 @@ export function Composer({
       else if (e.key === "Tab") { e.preventDefault(); if (slashFiltered.length > 0) pickSlash(slashFiltered[0]); }
       return;
     }
-    if (popup === "model" || popup === "command" || popup === "skill" || popup === "reasoning") { if (e.key === "Escape") setPopup(null); return; }
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+    if (popup === "model" || popup === "command" || popup === "skill" || popup === "reasoning") {
+      if (e.key === "Escape") { setPopup(null); return; }
+      if (e.key === "Enter") {
+        if (!e.shiftKey) { setPopup(null); e.preventDefault(); handleSubmit(); }
+        // Shift+Enter: close popup, let textarea insert newline
+        else { setPopup(null); }
+        return;
+      }
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      // CC-style: if draft is a slash command, execute it directly
+      const lastLine = draft.split("\n").pop() || "";
+      if (lastLine.startsWith("/")) {
+        const parts = lastLine.split(" ");
+        const cmdName = parts[0];
+        const matched = slashCommands.find(c => c.cmd === cmdName);
+        if (matched) {
+          if (cmdName === "/goal" && parts.length > 1) {
+            // /goal objective | criteria → parse and send as goal
+            setPopup(null);
+            const rest = parts.slice(1).join(" ");
+            const pipeIdx = rest.indexOf("|");
+            const objective = pipeIdx >= 0 ? rest.slice(0, pipeIdx).trim() : rest.trim();
+            const criteria = pipeIdx >= 0 ? rest.slice(pipeIdx + 1).trim() : undefined;
+            setDraft("");
+            (window as any).__aegisGoal = { objective, criteria };
+            handleSubmit();
+            return;
+          }
+          pickSlash(matched);
+          return;
+        }
+      }
+      handleSubmit();
+    }
   };
 
   const handleFilePick = async () => {
@@ -311,14 +348,25 @@ export function Composer({
         {popup === "slash" && <PickerPopup items={slashFiltered.map(c => ({ id: c.cmd, label: c.cmd, desc: c.desc, icon: c.icon }))} activeIdx={slashIdx} onPick={({id}) => { const c = slashCommands.find(x => x.cmd === id); if (c) pickSlash(c); }} />}
         {popup === "command" && <PickerPopup items={commandItems} activeIdx={-1} onPick={({id}) => {
           setPopup(null);
-          const lines = draft.split("\n"); lines[lines.length - 1] = id;
-          setDraft(lines.join("\n") + " "); inputRef.current?.focus();
+          // Execute command directly — don't insert text
+          const cmd = slashCommands.find(c => c.cmd === id);
+          if (cmd) { setDraft(""); cmd.run(); inputRef.current?.focus(); }
         }} />}
-        {popup === "skill" && <PickerPopup items={skillItems} activeIdx={-1} onPick={({id}) => {
-          setPopup(null);
-          setDraft(p => p ? `${p}\n[Skill: ${id}] ` : `[Skill: ${id}] `);
-          inputRef.current?.focus();
-        }} />}
+        {popup === "skill" && (
+          skillItems.length === 0 ? (
+            <div className="composer-popup">
+              <div className="popup-item" style={{ color: "var(--fg-muted)", justifyContent: "center", padding: "14px" }}>
+                当前无可用 Skill
+              </div>
+            </div>
+          ) : (
+            <PickerPopup items={skillItems} activeIdx={-1} onPick={({id}) => {
+              setPopup(null);
+              setDraft(p => p ? `${p}\n[Skill: ${id}] ` : `[Skill: ${id}] `);
+              inputRef.current?.focus();
+            }} />
+          )
+        )}
       </div>
     </div>
   );

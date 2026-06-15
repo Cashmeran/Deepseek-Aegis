@@ -1,5 +1,5 @@
 // Sidebar — workspace-grouped project list.
-import { useState, useMemo, useCallback, type ReactElement, type MouseEvent } from "react";
+import { useState, useMemo, useCallback, useEffect, type ReactElement, type MouseEvent } from "react";
 import { I } from "../icons";
 import { AegisWordmark } from "./AegisLogo";
 
@@ -63,6 +63,24 @@ type CtxMenu = {
 } | null;
 
 function ContextMenu({ menu, onClose }: { menu: CtxMenu; onClose: () => void }) {
+  // Close on click outside or scroll
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => onClose();
+    // Delay to avoid the same right-click that opens the menu from closing it
+    const id = setTimeout(() => {
+      window.addEventListener("click", close);
+      window.addEventListener("contextmenu", close);
+      window.addEventListener("scroll", close, { capture: true });
+    }, 0);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("click", close);
+      window.removeEventListener("contextmenu", close);
+      window.removeEventListener("scroll", close, { capture: true });
+    };
+  }, [menu, onClose]);
+
   if (!menu) return null;
 
   return (
@@ -96,21 +114,21 @@ export function Sidebar({
       x: e.clientX, y: e.clientY,
       items: [
         { label: "重命名", action: () => { const title = prompt("新名称", s.title); if (title?.trim()) onRename(s.id, title.trim()); } },
-        { label: "删除对话", action: () => onDelete(s.id) },
-        { label: "删除项目数据", danger: true, action: () => onDeleteProject(s.cwd || "") },
+        { label: "删除会话", action: () => onDelete(s.id) },
       ],
     });
-  }, [onRename, onDelete, onDeleteProject]);
+  }, [onRename, onDelete]);
 
   const showGroupMenu = useCallback((e: MouseEvent, workspace: string) => {
     e.preventDefault();
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
+        { label: "新建会话", action: onNew },
         { label: "删除项目数据", danger: true, action: () => onDeleteProject(workspace) },
       ],
     });
-  }, [onDeleteProject]);
+  }, [onDeleteProject, onNew]);
 
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>

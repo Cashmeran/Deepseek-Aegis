@@ -640,10 +640,7 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px 0;
-  scroll-behavior: smooth;
   transform: translateZ(0);         /* GPU composite layer */
-  will-change: scroll-position;     /* hint for smooth scrolling */
-  -webkit-overflow-scrolling: touch;
 }
 
 .messages-area > div {
@@ -656,8 +653,6 @@ body {
 
 .msg-row {
   margin-bottom: 20px;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 80px;
 }
 
 .msg-bubble {
@@ -1331,7 +1326,6 @@ button, select, .btn, .btn-icon, .composer-chip, .session-item,
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   box-shadow: var(--composer-shadow);
-  overflow: hidden;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   transform: translateZ(0);
 }
@@ -1874,20 +1868,14 @@ button, select, .btn, .btn-icon, .composer-chip, .session-item,
 /* ── Context Panel (Right) ─────────────────────────────────── */
 
 .context-panel-wrapper {
-  display: flex;
+  display: none;
   flex-shrink: 0;
   overflow: hidden;
-  min-width: 0;
-  transition: min-width 200ms cubic-bezier(0.2, 0, 0, 1), opacity 160ms ease-out;
   opacity: 1;
 }
 .context-panel-wrapper.open {
+  display: flex;
   min-width: 306px;
-}
-.context-panel-wrapper:not(.open) {
-  min-width: 0;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .context-panel {
@@ -2665,11 +2653,6 @@ select.input {
 
 .process-section {
   margin-bottom: 12px;
-  contain: layout style;
-}
-.turn-group {
-  margin-bottom: 4px;
-  contain: layout style;
 }
 
 .process-section summary {
@@ -2902,19 +2885,6 @@ body.resizing {
   cursor: col-resize !important;
 }
 
-/* ── Scroll fade indicator ──────────────────────────────── */
-
-.messages-area::after {
-  content: '';
-  position: sticky;
-  bottom: 0;
-  display: block;
-  height: 24px;
-  min-height: 24px;
-  background: linear-gradient(transparent, var(--bg-app));
-  pointer-events: none;
-  flex-shrink: 0;
-}
 
 /* ── Tab system (for settings) ──────────────────────────── */
 

@@ -127,6 +127,14 @@ impl ConversationState {
         !self.pending_tools.is_empty()
     }
 
+    /// Clear the entire conversation. Resets the session while keeping the same agent.
+    pub fn clear(&mut self) {
+        self.messages.clear();
+        self.pending_tools.clear();
+        self.total_usage = TokenUsage::default();
+        self.total_cost_usd = 0.0;
+    }
+
     /// Trim conversation back to just the original user message + system messages.
     /// Used for fresh-context retry: discard failed attempt context, keep only what the user asked.
     /// Returns the count of messages removed.

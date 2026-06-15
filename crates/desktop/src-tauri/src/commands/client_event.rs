@@ -462,6 +462,52 @@ pub async fn client_event(
             state.remove_session(&session_id);
             emit(&app, ServerEvent::SessionDeleted { session_id })
         }
+        ClientEvent::SessionCompact { session_id } => {
+            if let Some(mut agent) = state.take_agent(&session_id) {
+                let msg = agent.compact_now();
+                state.put_agent(&session_id, agent);
+                let _ = emit(&app, ServerEvent::StreamDelta {
+                    session_id: session_id.clone(),
+                    text: format!("\n[{}]\n", msg),
+                });
+                let _ = emit(&app, ServerEvent::SessionStatusEvent {
+                    session_id: session_id.clone(),
+                    status: SessionStatus::Completed,
+                    title: None, cwd: None, error: None,
+                });
+            }
+            Ok(())
+        }
+        ClientEvent::SessionClear { session_id } => {
+            if let Some(mut agent) = state.take_agent(&session_id) {
+                agent.conversation_mut().clear();
+                state.put_agent(&session_id, agent);
+            }
+            emit(&app, ServerEvent::SessionCleared { session_id: session_id.clone() })
+        }
+        ClientEvent::SessionGoal { session_id, objective, criteria } => {
+            let mut contract = aegis_core::agent::SprintContract::new(objective.clone());
+            if let Some(ref crit) = criteria {
+                for c in crit.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                    contract.acceptance_criteria.push(aegis_core::agent::AcceptanceCriterion {
+                        description: c.to_string(),
+                        verification_command: String::new(),
+                        expected_exit_code: 0,
+                        expected_output_contains: None,
+                    });
+                }
+            }
+            if let Some(mut agent) = state.take_agent(&session_id) {
+                let summary = contract.progress_summary();
+                agent.set_goal(contract);
+                state.put_agent(&session_id, agent);
+                let _ = emit(&app, ServerEvent::StreamDelta {
+                    session_id: session_id.clone(),
+                    text: format!("\n## Goal Set\n{}\nThe agent will work towards this goal and auto-verify completion.\n", summary),
+                });
+            }
+            Ok(())
+        }
         _ => Ok(()),
     }
 }

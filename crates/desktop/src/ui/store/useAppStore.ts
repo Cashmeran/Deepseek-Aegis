@@ -313,6 +313,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
       }
 
+      case "session.cleared": {
+        const { sessionId } = event.payload;
+        set((state) => {
+          const s = state.sessions[sessionId];
+          if (!s) return {};
+          return { sessions: { ...state.sessions, [sessionId]: { ...s, messages: [], status: "idle" as SessionStatus } } };
+        });
+        break;
+      }
+
       case "session.deleted": {
         const { sessionId } = event.payload;
         const state = get();

@@ -42,6 +42,8 @@ pub enum ServerEvent {
   SessionStatusEvent { #[serde(rename = "sessionId")] session_id: String, status: SessionStatus, #[serde(skip_serializing_if = "Option::is_none")] title: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] cwd: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] error: Option<String> },
   #[serde(rename = "session.deleted")]
   SessionDeleted { #[serde(rename = "sessionId")] session_id: String },
+  #[serde(rename = "session.cleared")]
+  SessionCleared { #[serde(rename = "sessionId")] session_id: String },
 
   // Stream events — AgentLoop output
   #[serde(rename = "stream.delta")]
@@ -82,6 +84,12 @@ pub enum ClientEvent {
   SessionStop { #[serde(rename = "sessionId")] session_id: String },
   #[serde(rename = "session.delete")]
   SessionDelete { #[serde(rename = "sessionId")] session_id: String },
+  #[serde(rename = "session.compact")]
+  SessionCompact { #[serde(rename = "sessionId")] session_id: String },
+  #[serde(rename = "session.goal")]
+  SessionGoal { #[serde(rename = "sessionId")] session_id: String, objective: String, criteria: Option<String> },
+  #[serde(rename = "session.clear")]
+  SessionClear { #[serde(rename = "sessionId")] session_id: String },
   #[serde(rename = "ask_user.response")]
   AskUserResponse { #[serde(rename = "sessionId")] session_id: String, answer: String },
 }

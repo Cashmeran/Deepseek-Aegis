@@ -133,6 +133,16 @@ function App() {
     return { input_tokens, output_tokens, cache_tokens, cost };
   }, [activeSession?.messages]);
 
+  // Scroll to bottom on session switch
+  useEffect(() => {
+    isAtBottomRef.current = true;
+    // Delay to let DOM render before scrolling
+    const id = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+    }, 50);
+    return () => clearTimeout(id);
+  }, [activeSessionId]);
+
   // Smart scroll: only auto-scroll when user is at bottom
   useEffect(() => {
     if (!messagesAreaRef.current || !isAtBottomRef.current) return;
@@ -252,6 +262,12 @@ function App() {
   const handleContinue = useCallback((text: string) => {
     if (!activeSessionId || isRunning) return;
     const session = sessions[activeSessionId];
+    // /goal handling: set contract first, then send the goal as prompt
+    if ((window as any).__aegisGoal) {
+      const { objective, criteria } = (window as any).__aegisGoal;
+      delete (window as any).__aegisGoal;
+      sendEvent({ type: "session.goal", payload: { sessionId: activeSessionId, objective, criteria } });
+    }
     sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt: text, messages: session?.messages ?? [] } });
   }, [sendEvent, activeSessionId, isRunning, sessions]);
 
@@ -262,21 +278,28 @@ function App() {
     setConfirmDelete({ id, cwd: session?.cwd });
   }, [sessions]);
 
-  const handleDeleteProject = useCallback(async (cwd: string) => {
-    if (!cwd) return;
-    try { await window.__TAURI__?.core?.invoke("delete_project", { cwd }); } catch {}
-    const next = { ...sessions };
-    for (const [id, s] of Object.entries(next)) {
-      if (s.cwd === cwd) delete next[id];
-    }
-    useAppStore.setState({ sessions: next });
-    if (activeSessionId && !next[activeSessionId]) setActiveSessionId(null);
-    addToast("已删除项目数据");
-  }, [sessions, activeSessionId, addToast, setActiveSessionId]);
+  const handleDeleteProject = useCallback((cwd: string) => {
+    setConfirmDelete({ id: cwd, cwd });
+  }, []);
 
   const confirmDeleteChoice = useCallback(async (idx: number) => {
     if (!confirmDelete) return;
-    if (idx === 0) {
+    const isProjectOnly = confirmDelete.id === confirmDelete.cwd;
+    if (isProjectOnly || idx === 1) {
+      // Delete project data
+      const cwd = confirmDelete.cwd;
+      if (cwd) {
+        try { await window.__TAURI__?.core?.invoke("delete_project", { cwd }); } catch {}
+      }
+      const next = { ...sessions };
+      for (const [id, s] of Object.entries(next)) {
+        if (s.cwd === cwd) delete next[id];
+      }
+      useAppStore.setState({ sessions: next });
+      if (activeSessionId && !next[activeSessionId]) setActiveSessionId(null);
+      addToast("已删除项目数据");
+    } else {
+      // Delete session only
       const cwd = confirmDelete.cwd;
       if (cwd) {
         try { await window.__TAURI__?.core?.invoke("delete_session", { cwd, sessionId: confirmDelete.id }); } catch {}
@@ -285,15 +308,6 @@ function App() {
       useAppStore.setState({ sessions: next });
       if (activeSessionId === confirmDelete.id) setActiveSessionId(null);
       addToast("已删除对话");
-    } else if (idx === 1) {
-      const cwd = confirmDelete.cwd;
-      if (cwd) {
-        try { await window.__TAURI__?.core?.invoke("delete_project", { cwd }); } catch {}
-      }
-      const next = { ...sessions }; delete next[confirmDelete.id];
-      useAppStore.setState({ sessions: next });
-      if (activeSessionId === confirmDelete.id) setActiveSessionId(null);
-      addToast("已删除项目数据");
     }
     setConfirmDelete(null);
   }, [confirmDelete, sessions, activeSessionId, addToast, setActiveSessionId]);
@@ -312,18 +326,29 @@ function App() {
   /* ── Slash commands ───────────────────────────────────── */
 
   const slashCommands = useMemo((): SlashCmd[] => [
-    { cmd: "/cancel",     desc: "取消当前正在执行的 Agent 任务",  icon: <I.stop />,    run: () => { if (isRunning) handleStop(); } },
-    { cmd: "/compact",    desc: "压缩会话上下文以释放 token",    icon: <I.copy />,     run: () => addToast("compact 暂未实现") },
-    { cmd: "/config",     desc: "打开设置面板",                 icon: <I.settings />, run: () => setShowSettings(true) },
-    { cmd: "/help",       desc: "关于 Aegis",                  icon: <I.info />,     run: () => setShowAbout(true) },
-    { cmd: "/status",     desc: "查看当前会话状态与用量",        icon: <I.panel />,   run: () => setShowContextPanel(p => !p) },
-    { cmd: "/usage",      desc: "查看 Token 用量和费用",        icon: <I.cpu />,     run: () => setShowContextPanel(p => !p) },
-    { cmd: "/mode",       desc: "切换执行模式 (chat/plan/default/yolo)", icon: <I.list />, run: () => setShowCmdPalette(true) },
-    { cmd: "/model",      desc: "切换当前使用的模型",            icon: <I.cpu />,     run: () => setShowCmdPalette(true) },
-    { cmd: "/new-session",desc: "创建新的 Agent 会话",          icon: <I.plus />,    run: () => setShowNewModal(true) },
+    { cmd: "/compact",    desc: "压缩会话上下文以释放 token",    icon: <I.copy />,     run: () => {
+      if (!activeSessionId) { addToast("无活动会话", "error"); return; }
+      sendEvent({ type: "session.compact", payload: { sessionId: activeSessionId } });
+      addToast("正在压缩…");
+    }},
+    { cmd: "/clear",      desc: "清空当前对话上下文",           icon: <I.x />,       run: () => {
+      if (!activeSessionId) return;
+      sendEvent({ type: "session.clear", payload: { sessionId: activeSessionId } });
+      setPrompt("");
+    }},
     { cmd: "/resume",     desc: "恢复之前的会话",               icon: <I.folder />,   run: () => setShowCmdPalette(true) },
-    { cmd: "/clear",      desc: "清空当前输入",                 icon: <I.x />,       run: () => { setPrompt(""); addToast("已清空"); } },
-  ], [isRunning, handleStop, addToast]);
+    { cmd: "/goal",       desc: "设定验收目标（/goal 目标 | 标准1, 标准2）", icon: <I.zap />, run: () => setPrompt("/goal ") },
+    { cmd: "/export",     desc: "导出当前会话到剪贴板",       icon: <I.download />, run: async () => {
+      if (!activeSession) { addToast("无活动会话", "error"); return; }
+      const ts = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+      const msgs = activeSession.messages.map(m => {
+        if (m.type === "user_prompt") return `**▸ You**\n\n${(m as Record<string,unknown>).prompt || ""}`;
+        if (m.type === "assistant") return `*** Aegis**\n\n${(m as Record<string,unknown>).text || ""}`;
+        return "";
+      }).join("\n\n");
+      try { await navigator.clipboard.writeText(msgs); addToast(`已复制 ${activeSession.messages.length} 条消息到剪贴板`, "success"); } catch { addToast("复制失败", "error"); }
+    }},
+  ], [activeSessionId, activeSession, sendEvent, addToast]);
 
   const paletteCommands = useMemo(() => {
     const map = slashCommands.reduce((acc, c) => { acc[c.cmd.slice(1)] = c; return acc; }, {} as Record<string, SlashCmd>);
@@ -486,15 +511,26 @@ function App() {
       {showNewModal && <NewSessionModal projectName={projectName} setProjectName={setProjectName} cwd={cwd} setCwd={setCwd} prompt={prompt} setPrompt={setPrompt} onClose={() => setShowNewModal(false)} onCreate={handleNewSession} scanning={scanning} scanResult={scanResult} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} apiKey={cfg.apiKey} model={selectedModel} onSave={handleSaveSettings} activeCwd={activeSession?.cwd} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
-      {confirmDelete && <ConfirmDialog
-        msg="选择要删除的内容："
-        options={[
-          { label: "删除对话", kind: "ghost" as const },
-          { label: "删除项目数据", kind: "danger" as const },
-        ]}
-        onChoice={confirmDeleteChoice}
-        onClose={() => setConfirmDelete(null)}
-      />}
+      {confirmDelete && (
+        confirmDelete.id === confirmDelete.cwd ? (
+          <ConfirmDialog
+            msg="确定删除该项目所有数据？此操作不可撤销。"
+            options={[{ label: "删除项目数据", kind: "danger" as const }]}
+            onChoice={confirmDeleteChoice}
+            onClose={() => setConfirmDelete(null)}
+          />
+        ) : (
+          <ConfirmDialog
+            msg="选择要删除的内容："
+            options={[
+              { label: "删除对话", kind: "ghost" as const },
+              { label: "删除项目数据", kind: "danger" as const },
+            ]}
+            onChoice={confirmDeleteChoice}
+            onClose={() => setConfirmDelete(null)}
+          />
+        )
+      )}
       <CommandPalette open={showCmdPalette} onClose={() => setShowCmdPalette(false)} commands={paletteCommands} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
