@@ -396,8 +396,9 @@ export const useAppStore = create<AppState>((set, get) => ({
               totalCache += u.cache_read_tokens || 0;
             }
           }
-          const cachePct = totalInput + totalCache > 0
-            ? Math.min(100, Math.round((totalCache / (totalInput + totalCache)) * 100))
+          // DeepSeek API: input_tokens already includes cache tokens, just divide
+          const cachePct = totalInput > 0
+            ? Math.min(100, Math.round((totalCache / totalInput) * 100))
             : 0;
           const cwd = existing.cwd;
           if (cwd) {
@@ -615,8 +616,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           totalCache += u.cache_read_tokens || 0;
         }
       }
-      const cachePct = totalInput + totalCache > 0
-        ? Math.min(100, Math.round((totalCache / (totalInput + totalCache)) * 100))
+      const cachePct = totalInput > 0
+        ? Math.min(100, Math.round((totalCache / totalInput) * 100))
         : undefined;
 
       set({

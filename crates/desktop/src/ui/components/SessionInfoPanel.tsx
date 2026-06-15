@@ -22,7 +22,7 @@ export function SessionInfoPanel({
   inputTokens: number; outputTokens: number; cacheTokens: number; cost: number; cachePct?: number;
 }): ReactElement {
   const totalTokens = inputTokens + outputTokens;
-  const cacheRate = cachePct ?? (inputTokens > 0 ? Math.round((cacheTokens / (inputTokens + cacheTokens)) * 100) : 0);
+  const cacheRate = cachePct ?? (inputTokens > 0 ? Math.round((cacheTokens / inputTokens) * 100) : 0);
 
   return (
     <div className="session-info-panel">
