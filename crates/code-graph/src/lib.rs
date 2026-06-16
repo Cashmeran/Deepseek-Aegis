@@ -20,7 +20,7 @@ pub mod mcp_tool;
 
 // Core trait re-exports
 pub use store::GraphStore;
-pub use store::SqliteGraphStore;
+pub use store::{SqliteGraphStore, VizEdge, VizNode};
 
 // High-level API re-exports
 pub use parser::CodeParser;

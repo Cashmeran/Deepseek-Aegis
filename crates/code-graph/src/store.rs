@@ -21,8 +21,27 @@ pub trait GraphStore: Send + Sync {
     fn get_file_nodes(&self, file_path: &str) -> AgentResult<Vec<GraphNode>>;
     fn search_nodes(&self, name_pattern: &str, node_type: Option<NodeType>, limit: usize) -> AgentResult<Vec<GraphNode>>;
     /// Resolve cross-file call edges by matching target_name to node names.
-    /// Default: no-op. Override in SqliteGraphStore.
     fn resolve_cross_file_calls(&self) -> AgentResult<usize> { Ok(0) }
+    /// Get file-level nodes for the graph visualization panel.
+    fn get_all_nodes_for_viz(&self) -> AgentResult<Vec<VizNode>>;
+    /// Get cross-file edges for the graph visualization panel.
+    fn get_all_edges_for_viz(&self) -> AgentResult<Vec<VizEdge>>;
+}
+
+/// Lightweight node for the desktop graph visualization.
+pub struct VizNode {
+    pub id: String,
+    pub label: String,
+    pub path: String,
+    pub language: String,
+    pub node_count: usize,
+}
+
+/// Lightweight edge for the desktop graph visualization.
+pub struct VizEdge {
+    pub source: String,
+    pub target: String,
+    pub weight: usize,
 }
 
 pub struct SqliteGraphStore {
@@ -402,5 +421,48 @@ impl GraphStore for SqliteGraphStore {
 
         tracing::info!("Cross-file resolution: {} dangling edges, {} resolved", dangling.len(), resolved);
         Ok(resolved)
+    }
+
+    fn get_all_nodes_for_viz(&self) -> AgentResult<Vec<VizNode>> {
+        let c = self.lock();
+        let mut stmt = c.prepare(
+            "SELECT DISTINCT n.file_path, n.file_path,
+                    COALESCE(fh.language, ''), COALESCE(fh.node_count, 0)
+             FROM nodes n
+             LEFT JOIN file_hashes fh ON n.file_path = fh.path
+             WHERE n.node_type = 0
+             ORDER BY fh.node_count DESC
+             LIMIT 200"
+        ).map_err(|e| AgentError::Internal(format!("viz nodes: {e}")))?;
+
+        let rows = stmt.query_map([], |row| {
+            let path: String = row.get(0)?;
+            let label: String = row.get(1)?;
+            let lang: String = row.get(2)?;
+            let count: usize = row.get(3)?;
+            Ok(VizNode { id: path.clone(), label, path, language: lang, node_count: count })
+        }).map_err(|e| AgentError::Internal(format!("viz nodes iter: {e}")))?;
+
+        Ok(rows.filter_map(|r| r.ok()).collect())
+    }
+
+    fn get_all_edges_for_viz(&self) -> AgentResult<Vec<VizEdge>> {
+        let c = self.lock();
+        let mut stmt = c.prepare(
+            "SELECT s.file_path, t.file_path, COUNT(*) as cnt
+             FROM edges e
+             JOIN nodes s ON e.source_id = s.id
+             JOIN nodes t ON e.target_id = t.id
+             WHERE e.edge_type = 1 AND s.file_path != t.file_path
+             GROUP BY s.file_path, t.file_path
+             ORDER BY cnt DESC
+             LIMIT 1000"
+        ).map_err(|e| AgentError::Internal(format!("viz edges: {e}")))?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(VizEdge { source: row.get(0)?, target: row.get(1)?, weight: row.get(2)? })
+        }).map_err(|e| AgentError::Internal(format!("viz edges iter: {e}")))?;
+
+        Ok(rows.filter_map(|r| r.ok()).collect())
     }
 }

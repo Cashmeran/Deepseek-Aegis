@@ -23,6 +23,7 @@ aegis-tools = { path = "../../tools" }
 aegis-memory = { path = "../../memory" }
 aegis-code-graph = { path = "../../code-graph" }
 aegis-mcp = { path = "../../mcp" }
+aegis-im = { path = "../../im" }
 enigo = "0.6"
 xcap = "0.5"
 image = "0.25"

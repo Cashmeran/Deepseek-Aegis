@@ -79,7 +79,7 @@ pub enum ClientEvent {
   #[serde(rename = "session.start")]
   SessionStart { title: String, prompt: String, #[serde(skip_serializing_if = "Option::is_none")] cwd: Option<String>, provider: ProviderKind, #[serde(rename = "apiKey")] api_key: String, model: String, #[serde(rename = "baseUrl", skip_serializing_if = "Option::is_none")] base_url: Option<String>, #[serde(rename = "executionMode", skip_serializing_if = "Option::is_none")] execution_mode: Option<String> },
   #[serde(rename = "session.continue")]
-  SessionContinue { #[serde(rename = "sessionId")] session_id: String, prompt: String, #[serde(default, skip_serializing_if = "Option::is_none")] messages: Option<Vec<Value>> },
+  SessionContinue { #[serde(rename = "sessionId")] session_id: String, prompt: String, #[serde(default, skip_serializing_if = "Option::is_none")] messages: Option<Vec<Value>>, #[serde(default, skip_serializing_if = "Option::is_none")] cwd: Option<String> },
   #[serde(rename = "session.stop")]
   SessionStop { #[serde(rename = "sessionId")] session_id: String },
   #[serde(rename = "session.delete")]

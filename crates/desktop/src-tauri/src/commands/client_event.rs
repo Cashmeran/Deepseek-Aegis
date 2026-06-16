@@ -15,8 +15,8 @@ use aegis_memory::MemoryStore;
 use crate::events::{ClientEvent, ServerEvent, SessionStatus};
 use crate::state::SessionState;
 
-/// Auto-read API key from CLI config or env var
-fn read_api_key() -> (String, String) {
+/// Auto-read API key from CLI config or env var.
+pub(crate) fn read_api_key_internal() -> (String, String) {
     let config_path = dirs::home_dir()
         .unwrap_or_default()
         .join(".aegis")
@@ -40,7 +40,7 @@ fn emit(app: &AppHandle, event: ServerEvent) -> Result<(), String> {
 
 // ── Agent factory — full toolkit + memory + code-graph ─────────────
 
-fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoop<DeepSeekClient>, String> {
+pub(crate) fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoop<DeepSeekClient>, String> {
     let llm = Arc::new(DeepSeekClient::new(api_key.into(), model)
         .map_err(|e| format!("Failed to create DeepSeek client: {e}"))?);
 
@@ -49,6 +49,9 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
     config.verify_before_output = true; // enable confidence scoring + verification
     if let Some(dir) = cwd {
         config.workspace_dir = dir.to_string();
+        log::info!("build_agent: workspace_dir = {dir}");
+    } else {
+        log::warn!("build_agent: no cwd, workspace_dir not set!");
     }
 
     let registry = Arc::new(ToolRegistry::new());
@@ -149,6 +152,50 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
         registry.register(skill_tool).ok();
     }
 
+    // ── Code graph tools (CLI parity) ──
+    {
+        let graph_db = cwd.map(|d| PathBuf::from(d).join(".aegis").join("graph.db"))
+            .unwrap_or_else(|| PathBuf::from(".aegis/graph.db"));
+
+        use aegis_code_graph::GraphStore;
+        let workspace = cwd.map(|d| d.to_string()).unwrap_or_default();
+        struct ArchContextTool { db_path: PathBuf, workspace: String }
+        #[async_trait::async_trait]
+        impl aegis_core::types::Tool for ArchContextTool {
+            async fn execute(self: Arc<Self>, tool_use: &aegis_core::types::ToolUse, _ctx: &aegis_core::types::ToolContext) -> aegis_core::error::AgentResult<aegis_core::types::ToolResultMessage> {
+                let file_path = tool_use.input.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+                if file_path.is_empty() {
+                    return Err(aegis_core::error::AgentError::ToolValidationError { tool: "get_architectural_context".into(), errors: "file_path is required".into() });
+                }
+                let start = std::time::Instant::now();
+                if !self.db_path.exists() {
+                    return Ok(aegis_core::types::ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: false, content: vec![aegis_core::types::ContentBlock::Text { text: "Codebase not indexed yet. Run scan_codebase first.".into() }], elapsed_ms: start.elapsed().as_millis() as u64 });
+                }
+                match aegis_code_graph::SqliteGraphStore::open(&self.db_path) {
+                    Ok(store) => {
+                        let resolved = if file_path.contains(':') || file_path.starts_with('/') {
+                            file_path.replace('\\', "/")
+                        } else {
+                            format!("{}/{}", self.workspace.trim_end_matches('/').replace('\\', "/"), file_path.trim_start_matches('/'))
+                        };
+                        log::info!("ArchContext query: file={file_path}, workspace={}, resolved={resolved}", self.workspace);
+                        let text = aegis_code_graph::get_architectural_context(&store, &resolved).unwrap_or_else(|e| format!("{e}"));
+                        let truncated: String = text.lines().take(40).collect::<Vec<_>>().join("\n");
+                        Ok(aegis_core::types::ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: false, content: vec![aegis_core::types::ContentBlock::Text { text: truncated }], elapsed_ms: start.elapsed().as_millis() as u64 })
+                    }
+                    Err(e) => Ok(aegis_core::types::ToolResultMessage { tool_use_id: tool_use.id.clone(), is_error: true, content: vec![aegis_core::types::ContentBlock::Text { text: format!("DB error: {e}") }], elapsed_ms: start.elapsed().as_millis() as u64 }),
+                }
+            }
+        }
+        impl aegis_core::types::ToolMetadata for ArchContextTool {
+            fn schema(&self) -> aegis_core::types::ToolSchema { aegis_core::types::ToolSchema { name: "get_architectural_context".into(), description: "Returns 1-hop architectural context: imports, callers, callees, inheritance for a file. Use BEFORE editing to understand dependencies.".into(), prompt: "Use BEFORE editing any file to understand its relationships.".into(), input_schema: serde_json::json!({"type":"object","properties":{"file_path":{"type":"string","description":"Path to source file"}},"required":["file_path"]}), } }
+            fn risk_level(&self) -> aegis_core::types::RiskLevel { aegis_core::types::RiskLevel::Low }
+            fn concurrency_safety(&self) -> aegis_core::types::ConcurrencySafety { aegis_core::types::ConcurrencySafety::ConcurrentSafe }
+        }
+
+        registry.register(Arc::new(ArchContextTool { db_path: graph_db.clone(), workspace: workspace.clone() })).ok();
+    }
+
     // AgentTool — sub-agent spawning with limited tool set
     {
         let agent_llm = Arc::clone(&llm);
@@ -158,7 +205,7 @@ fn build_agent(api_key: &str, model: &str, cwd: Option<&str>) -> Result<AgentLoo
         let runner: aegis_tools::agent::SubagentRunner = Arc::new(move |def: aegis_core::agent::AgentDefinition, prompt: String| {
             let llm2 = Arc::clone(&agent_llm);
             let reg2 = Arc::clone(&agent_registry);
-            let sp2 = Arc::clone(&agent_sp);
+            let _sp2 = Arc::clone(&agent_sp);
             let cfg2 = agent_config.clone();
             Box::pin(async move {
                 let sub_config = {
@@ -310,7 +357,7 @@ fn load_project_rules(cwd: &str) -> String {
 
 #[tauri::command]
 pub fn get_config() -> Result<serde_json::Value, String> {
-    let (key, model) = read_api_key();
+    let (key, model) = read_api_key_internal();
     Ok(serde_json::json!({ "apiKey": key, "model": model }))
 }
 
@@ -330,7 +377,7 @@ pub async fn client_event(
         ClientEvent::SessionStart { title, prompt, cwd, provider: _, api_key, model, execution_mode, .. } => {
             let mut api_key = api_key.trim().to_string();
             let mut model = model.trim().to_string();
-            if api_key.is_empty() { (api_key, model) = read_api_key(); }
+            if api_key.is_empty() { (api_key, model) = read_api_key_internal(); }
             if api_key.is_empty() {
                 return emit(&app, ServerEvent::RunnerError {
                     session_id: None,
@@ -393,13 +440,13 @@ pub async fn client_event(
             });
             Ok(())
         }
-        ClientEvent::SessionContinue { session_id, prompt, messages } => {
+        ClientEvent::SessionContinue { session_id, prompt, messages, cwd: event_cwd } => {
             let prev_msgs = messages.unwrap_or_default();
             // Auto-init session if this is a historical project (loaded from disk without SessionStart)
             let provider = match state.get_provider(&session_id) {
                 Some(p) => p,
                 None => {
-                    let (key, model) = read_api_key();
+                    let (key, model) = read_api_key_internal();
                     if key.is_empty() {
                         return emit(&app, ServerEvent::RunnerError {
                             session_id: Some(session_id.clone()),
@@ -415,15 +462,14 @@ pub async fn client_event(
                     };
                     state.store_provider(&session_id, settings.clone());
                     state.store_mode(&session_id, "default");
-                    state.store_cwd(&session_id, &session_id);
-                    // CRITICAL: ensure backend session entry exists so is_session_running() works
+                    // Don't store session_id as cwd — it's not a valid path; notify_im_project sets it later
                     let title = session_id.split('/').last().unwrap_or(&session_id).to_string();
                     state.ensure_session(&session_id, title, Some(session_id.clone()));
                     settings
                 }
             };
             let mode_str = state.get_mode(&session_id).unwrap_or_else(|| "default".into());
-            let cwd = state.get_cwd(&session_id);
+            let cwd = event_cwd.or_else(|| state.get_cwd(&session_id));
 
             emit(&app, ServerEvent::StreamUserPrompt { session_id: session_id.clone(), prompt: prompt.clone() })?;
             emit(&app, ServerEvent::SessionStatusEvent {
@@ -514,7 +560,7 @@ pub async fn client_event(
 
 // ── Agent turn — one prompt → streaming output ────────────────────
 
-async fn run_agent_turn(
+pub(crate) async fn run_agent_turn(
     app: &AppHandle,
     session_id: &str,
     api_key: &str,
@@ -530,12 +576,13 @@ async fn run_agent_turn(
         return Err("该会话已有正在运行的任务".into());
     }
 
-    // Reuse existing agent or build a new one
+    // Reuse existing agent or build new one. Rebuild if cwd changed.
+    let stored_cwd = state.get_cwd(session_id);
+    let cwd_changed = cwd.is_some() && stored_cwd.as_deref() != cwd;
     let mut agent = match state.take_agent(session_id) {
-        Some(existing) => existing,
-        None => {
+        Some(existing) if !cwd_changed => existing,
+        _ => {
             let mut a = build_agent(api_key, model, cwd)?;
-            // Replay saved messages so the fresh agent has conversation context
             replay_conversation(&mut a, prev_messages);
             a
         }
@@ -551,14 +598,13 @@ async fn run_agent_turn(
 
     let sid = session_id.to_string();
     let app_handle = app.clone();
-    const AGENT_TURN_TIMEOUT: u64 = 600; // 10 min — pattern from DeepSeek-GUI KUN timeout
+    const AGENT_TURN_TIMEOUT: u64 = 600;
 
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(AGENT_TURN_TIMEOUT),
         agent.run_streaming(prompt, &move |event: StreamEvent| {
-        // Check cancellation flag — if user pressed stop, don't emit more events
         if !state.is_session_running(&sid) {
-            return; // silently drop events after cancellation
+            return;
         }
         let _ = match event {
             StreamEvent::TextDelta(text) => {
@@ -645,7 +691,6 @@ async fn run_agent_turn(
             Err(format!("Agent error: {e}"))
         }
         Err(_elapsed) => {
-            // Turn timeout — agent hung
             state.end_turn(session_id);
             state.put_agent(session_id, agent);
             let msg = format!("回合超时 ({}s)，Agent 已强制终止", AGENT_TURN_TIMEOUT);

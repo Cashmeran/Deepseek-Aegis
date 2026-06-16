@@ -1,4 +1,3 @@
-use crate::types::tool::ExecutionMode;
 use serde::{Deserialize, Serialize};
 
 /// Agent 的全局配置。精简后的活跃字段，去掉了未实现或被硬编码覆盖的占位项。

@@ -22,6 +22,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use aegis_code_graph::GraphStore;
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -503,14 +504,31 @@ pub fn project_open(cwd: String) -> Result<ProjectMeta, String> {
 }
 
 #[tauri::command]
-pub fn project_scan(cwd: String) -> Result<ScanResult, String> {
+pub fn project_scan(app: tauri::AppHandle, cwd: String) -> Result<ScanResult, String> {
     let root = PathBuf::from(&cwd);
     let pm = if ProjectManager::exists_at(&root) {
         ProjectManager::open(&root)?
     } else {
         ProjectManager::init(&root)?
     };
-    Ok(pm.scan_files())
+    let result = pm.scan_files();
+
+    // Build code graph in background, emit event when done
+    let root2 = root.clone();
+    std::thread::spawn(move || {
+        if let Ok(pm) = ProjectManager::open(&root2) {
+            log::info!("Building code graph for {}...", root2.display());
+            match pm.scan_with_graph() {
+                Ok(r) => {
+                    log::info!("Code graph built: {} files, {:.1}s", r.total_files, r.duration_ms as f64 / 1000.0);
+                    let _ = app.emit("graph-updated", cwd);
+                }
+                Err(e) => log::warn!("Code graph build skipped: {e}"),
+            }
+        }
+    });
+
+    Ok(result)
 }
 
 #[tauri::command]

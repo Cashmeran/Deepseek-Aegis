@@ -94,6 +94,7 @@ interface AppState {
   markHistoryRequested: (sessionId: string) => void;
   resolvePermissionRequest: (sessionId: string, toolUseId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
+  addImUserMessage: (sessionId: string, prompt: string) => void;
   initConfig: () => Promise<void>;
   initProject: (cwd: string) => Promise<ProjectMeta | null>;
   openProject: (cwd: string) => Promise<ProjectMeta | null>;
@@ -219,6 +220,22 @@ export const useAppStore = create<AppState>((set, get) => ({
             permissionRequests: existing.permissionRequests.filter(req => req.toolUseId !== toolUseId)
           }
         }
+      };
+    });
+  },
+
+  addImUserMessage: (sessionId, prompt) => {
+    set(state => {
+      const ses = state.sessions[sessionId];
+      if (!ses) return state;
+      return {
+        sessions: {
+          ...state.sessions,
+          [sessionId]: {
+            ...ses,
+            messages: [...ses.messages, { type: "user_prompt" as const, prompt }],
+          },
+        },
       };
     });
   },
@@ -467,7 +484,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       case "runner.error": {
-        set({ globalError: event.payload.message });
+        const sid = event.payload.sessionId;
+        set(s => {
+          const err = event.payload.message;
+          if (!sid) return { globalError: err };
+          const ses = s.sessions[sid];
+          if (!ses) return { globalError: err };
+          return {
+            globalError: err,
+            sessions: { ...s.sessions, [sid]: { ...ses, status: "error" as const } },
+          };
+        });
         break;
       }
     }

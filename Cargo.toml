@@ -8,6 +8,7 @@ members = [
     "crates/sandbox",
     "crates/cli",
     "crates/mcp",
+    "crates/im",
 ]
 
 [workspace.dependencies]
@@ -19,6 +20,7 @@ aegis-memory = { path = "crates/memory" }
 aegis-sandbox = { path = "crates/sandbox" }
 aegis-cli = { path = "crates/cli" }
 aegis-mcp = { path = "crates/mcp" }
+aegis-im = { path = "crates/im" }
 
 # 异步运行时 — 整个系统的并发基础
 tokio = { version = "1.44", features = ["full"] }
@@ -43,5 +45,6 @@ rustyline = "15"                                       # readline 行编辑
 axum = { version = "0.8", features = ["json"] }       # MCP SSE HTTP server
 tokio-stream = "0.1"
 async-trait = "0.1"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 globset = "0.4"
 regex = "1"

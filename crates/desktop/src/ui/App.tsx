@@ -12,10 +12,13 @@ import { NewSessionModal, AboutModal } from "./components/NewSessionModal";
 import { StatusBar } from "./components/StatusBar";
 import { ToastContainer, nextToastId, type ToastItem } from "./components/Toast";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ConnectPhoneModal } from "./components/ConnectPhoneModal";
 import { SessionHeader } from "./components/SessionHeader";
 import { ChatStarterGrid } from "./components/ChatStarterGrid";
 import { RuntimeBanner } from "./components/RuntimeBanner";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { FileTree } from "./render/FileTree";
+import { GraphPanel } from "./components/GraphPanel";
 import { SessionInfoPanel } from "./components/SessionInfoPanel";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -66,14 +69,87 @@ function App() {
   const handleServerEvent = useAppStore(s => s.handleServerEvent);
   const { connected, sendEvent } = useIPC(handleServerEvent);
 
+  // ── IM bridge: listen for Feishu messages ────────────────────
+  const pendingImReplyRef = useRef<string | null>(null);
+  const sendEventRef = useRef(sendEvent);
+  sendEventRef.current = sendEvent;
+
+  useEffect(() => {
+    const tauri = window.__TAURI__;
+    if (!tauri?.event?.listen) return;
+
+    let cancelled = false;
+    let unlistenFn: (() => void) | null = null;
+
+    tauri.event.listen<{chatId: string; text: string; sender: string; platform: string}>("im-message", (event) => {
+      if (cancelled) return;
+      const { chatId, text } = event.payload;
+      const state = useAppStore.getState();
+      const sessionId = state.activeSessionId;
+      if (!sessionId) return;
+
+      const session = state.sessions[sessionId];
+      if (session?.status === "running") return;
+
+      pendingImReplyRef.current = chatId;
+      const cwd = state.sessions[sessionId]?.cwd;
+      sendEventRef.current({ type: "session.continue", payload: { sessionId, prompt: text, cwd } });
+    }).then(fn => {
+      if (cancelled) { fn(); return; }
+      unlistenFn = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unlistenFn?.();
+    };
+  }, []);
+
   const sessions = useAppStore(s => s.sessions);
   const activeSessionId = useAppStore(s => s.activeSessionId);
   const setActiveSessionId = useAppStore(s => s.setActiveSessionId);
   const loadProjectSessions = useAppStore(s => s.loadProjectSessions);
 
+  // When agent finishes an IM-triggered turn, send reply back to Feishu
+  const imReplySentRef = useRef(false);
+  const prevStatusRef = useRef<string>("");
+  useEffect(() => {
+    const chatId = pendingImReplyRef.current;
+    if (!chatId || !activeSessionId) return;
+    const session = sessions[activeSessionId];
+    if (!session) return;
+
+    const wasRunning = prevStatusRef.current === "running";
+    prevStatusRef.current = session.status;
+
+    if (wasRunning && session.status === "completed" && !imReplySentRef.current) {
+      imReplySentRef.current = true;
+      const msgs = session.messages || [];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i] as Record<string, unknown>;
+        if (m.type === "assistant" && m.text && typeof m.text === "string" && (m.text as string).length > 0) {
+          window.__TAURI__?.core?.invoke("send_im_reply", {
+            chatId, text: m.text as string,
+          }).catch(() => {});
+          break;
+        }
+      }
+      pendingImReplyRef.current = null;
+    }
+
+    // Reset when not running (new turn can start)
+    if (session.status !== "running") {
+      imReplySentRef.current = false;
+    }
+  }, [sessions, activeSessionId]);
+
   const handleSelectSession = useCallback(async (id: string) => {
     setActiveSessionId(id);
     const session = sessions[id];
+    window.__TAURI__?.core?.invoke("notify_im_project", {
+      cwd: session?.cwd || id,
+      sessionId: id,
+    }).catch((e: any) => console.error("[IM] notify_im_project failed:", e));
     if (session && !session.hydrated && session.cwd) {
       await loadProjectSessions(session.cwd);
     }
@@ -90,6 +166,7 @@ function App() {
   const resizing = useRef<"sidebar" | "panel" | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPhoneConnect, setShowPhoneConnect] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showCmdPalette, setShowCmdPalette] = useState(false);
   const [cwd, setCwd] = useState("");
@@ -97,7 +174,7 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; cwd?: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; cwd?: string; kind: "session" | "project" } | null>(null);
   const [selectedModel, setSelectedModel] = useState(providerConfigs.deepseek.model);
   const [reasoningEffort, setReasoningEffort] = useState("max");
   const [loadedSkills, setLoadedSkills] = useState<RealSkill[]>([]);
@@ -261,6 +338,8 @@ function App() {
 
   const handleContinue = useCallback((text: string) => {
     if (!activeSessionId || isRunning) return;
+    // Clear any stale IM reply reference — this is a manual desktop message
+    pendingImReplyRef.current = null;
     const session = sessions[activeSessionId];
     // /goal handling: set contract first, then send the goal as prompt
     if ((window as any).__aegisGoal) {
@@ -268,24 +347,24 @@ function App() {
       delete (window as any).__aegisGoal;
       sendEvent({ type: "session.goal", payload: { sessionId: activeSessionId, objective, criteria } });
     }
-    sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt: text, messages: session?.messages ?? [] } });
+    sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt: text, messages: session?.messages ?? [], cwd: session?.cwd } });
   }, [sendEvent, activeSessionId, isRunning, sessions]);
 
   const handleStop = useCallback(() => { if (activeSessionId) { sendEvent({ type: "session.stop", payload: { sessionId: activeSessionId } }); addToast("已停止"); } }, [sendEvent, activeSessionId, addToast]);
 
   const handleDeleteSession = useCallback((id: string) => {
     const session = sessions[id];
-    setConfirmDelete({ id, cwd: session?.cwd });
+    setConfirmDelete({ id, cwd: session?.cwd, kind: "session" });
   }, [sessions]);
 
   const handleDeleteProject = useCallback((cwd: string) => {
-    setConfirmDelete({ id: cwd, cwd });
+    setConfirmDelete({ id: cwd, cwd, kind: "project" });
   }, []);
 
   const confirmDeleteChoice = useCallback(async (idx: number) => {
     if (!confirmDelete) return;
-    const isProjectOnly = confirmDelete.id === confirmDelete.cwd;
-    if (isProjectOnly || idx === 1) {
+    const deleteProject = confirmDelete.kind === "project" || idx === 1;
+    if (deleteProject) {
       // Delete project data
       const cwd = confirmDelete.cwd;
       if (cwd) {
@@ -358,7 +437,7 @@ function App() {
   /* ── Context Panel state ────────────────────────────── */
 
   const [showContextPanel, setShowContextPanel] = useState(false);
-  const [ctxTab, setCtxTab] = useState<"info" | "files" | "preview">("info");
+  const [ctxTab, setCtxTab] = useState<"info" | "graph" | "files" | "preview">("info");
   const [previewUrl, setPreviewUrl] = useState("");
 
   // Auto-detect dev server URLs in agent output → open preview panel
@@ -392,7 +471,10 @@ function App() {
           sessions={sessions} activeSessionId={activeSessionId}
           onSelect={handleSelectSession} onDelete={handleDeleteSession} onRename={handleRenameSession}
           onDeleteProject={handleDeleteProject}
-          onNew={() => setShowNewModal(true)} onOpenSettings={() => setShowSettings(true)} onOpenAbout={() => setShowAbout(true)}
+          onNew={() => setShowNewModal(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenPhoneConnect={() => setShowPhoneConnect(true)}
+          onOpenAbout={() => setShowAbout(true)}
           connected={connected} model={cfg.apiKey ? selectedModel : "未配置 Key"} search={sidebarSearch} setSearch={setSidebarSearch} />
       </div>
       {!sidebarCollapsed && (
@@ -480,12 +562,17 @@ function App() {
           <div className="context-panel-header">
             <div className="tab-row ctx-panel-tab-row">
               <button className={`tab-btn ${ctxTab === "info" ? "" : ""}`} data-on={ctxTab === "info"} onClick={() => setCtxTab("info")}>会话</button>
+              <button className={`tab-btn ${ctxTab === "graph" ? "" : ""}`} data-on={ctxTab === "graph"} onClick={() => setCtxTab("graph")}>图谱</button>
               <button className={`tab-btn ${ctxTab === "files" ? "" : ""}`} data-on={ctxTab === "files"} onClick={() => setCtxTab("files")}>文件</button>
               <button className={`tab-btn ${ctxTab === "preview" ? "" : ""}`} data-on={ctxTab === "preview"} onClick={() => setCtxTab("preview")}>预览</button>
             </div>
             <button className="btn-icon btn-sm" onClick={() => setShowContextPanel(false)}><I.x /></button>
           </div>
-          {ctxTab === "info" ? (
+          {ctxTab === "graph" ? (
+            <GraphPanel cwd={activeSession?.cwd} />
+          ) : ctxTab === "files" ? (
+            <FileTree cwd={activeSession?.cwd || ""} />
+          ) : ctxTab === "info" ? (
             <SessionInfoPanel
               title={activeSession.title || activeSession.id}
               status={activeSession.status}
@@ -510,9 +597,10 @@ function App() {
       {/* Modals & Overlays */}
       {showNewModal && <NewSessionModal projectName={projectName} setProjectName={setProjectName} cwd={cwd} setCwd={setCwd} prompt={prompt} setPrompt={setPrompt} onClose={() => setShowNewModal(false)} onCreate={handleNewSession} scanning={scanning} scanResult={scanResult} />}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} apiKey={cfg.apiKey} model={selectedModel} onSave={handleSaveSettings} activeCwd={activeSession?.cwd} />}
+      {showPhoneConnect && <ConnectPhoneModal onClose={() => setShowPhoneConnect(false)} />}
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       {confirmDelete && (
-        confirmDelete.id === confirmDelete.cwd ? (
+        confirmDelete.kind === "project" ? (
           <ConfirmDialog
             msg="确定删除该项目所有数据？此操作不可撤销。"
             options={[{ label: "删除项目数据", kind: "danger" as const }]}

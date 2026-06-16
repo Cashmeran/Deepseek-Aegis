@@ -5,6 +5,7 @@
 mod commands;
 mod computer;
 mod events;
+mod im;
 mod project;
 mod state;
 
@@ -19,6 +20,8 @@ fn main() {
             .build(),
         )?;
       }
+      // IM bridge — Feishu remote control (reads ~/.aegis/im.toml)
+      crate::im::ImBridge::start_from_config(app.handle().clone());
       Ok(())
     })
     .manage(state::SessionState::new())
@@ -43,6 +46,12 @@ fn main() {
       commands::session::save_compaction_config,
       commands::session::get_computer_use_enabled,
       commands::session::set_computer_use_enabled,
+      crate::im::get_im_config,
+      crate::im::save_im_config,
+      crate::im::test_im_connection,
+      crate::im::notify_im_project,
+      crate::im::send_im_reply,
+      commands::graph::get_code_graph,
       commands::client_event::client_event,
       commands::client_event::get_config,
       project::project_init,

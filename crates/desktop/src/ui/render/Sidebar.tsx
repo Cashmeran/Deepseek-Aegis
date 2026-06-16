@@ -18,6 +18,7 @@ type Props = {
   onDeleteProject: (cwd: string) => void;
   onNew: () => void;
   onOpenSettings: () => void;
+  onOpenPhoneConnect: () => void;
   onOpenAbout: () => void;
   connected: boolean; model: string;
   search: string; setSearch: (s: string) => void;
@@ -102,7 +103,7 @@ function ContextMenu({ menu, onClose }: { menu: CtxMenu; onClose: () => void }) 
 
 export function Sidebar({
   collapsed, onToggle, sessions, activeSessionId, onSelect, onDelete, onRename, onDeleteProject, onNew,
-  onOpenSettings, onOpenAbout, connected, model, search, setSearch,
+  onOpenSettings, onOpenPhoneConnect, onOpenAbout, connected, model, search, setSearch,
 }: Props): ReactElement {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [ctxMenu, setCtxMenu] = useState<CtxMenu>(null);
@@ -200,6 +201,7 @@ export function Sidebar({
 
           <div className="sidebar-actions-bottom">
             <button className="sidebar-action-item" onClick={onOpenSettings}><I.settings />设置</button>
+            <button className="sidebar-action-item" onClick={onOpenPhoneConnect}><I.smartphone />连接手机</button>
             <button className="sidebar-action-item" onClick={onOpenAbout}><I.info />关于</button>
           </div>
 
