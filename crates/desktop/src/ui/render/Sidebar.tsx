@@ -201,7 +201,6 @@ export function Sidebar({
 
           <div className="sidebar-actions-bottom">
             <button className="sidebar-action-item" onClick={onOpenSettings}><I.settings />设置</button>
-            <button className="sidebar-action-item" onClick={onOpenPhoneConnect}><I.smartphone />连接手机</button>
             <button className="sidebar-action-item" onClick={onOpenAbout}><I.info />关于</button>
           </div>
 

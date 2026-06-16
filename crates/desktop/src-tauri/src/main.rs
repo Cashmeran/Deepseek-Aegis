@@ -20,8 +20,8 @@ fn main() {
             .build(),
         )?;
       }
-      // IM bridge — Feishu remote control (reads ~/.aegis/im.toml)
-      crate::im::ImBridge::start_from_config(app.handle().clone());
+      // IM bridge — disabled for now (unfinished)
+      // crate::im::ImBridge::start_from_config(app.handle().clone());
       Ok(())
     })
     .manage(state::SessionState::new())

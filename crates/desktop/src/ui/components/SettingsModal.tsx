@@ -85,16 +85,7 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
                 {AVAILABLE_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
-            <div className="settings-section">
-              <h3>计算机控制</h3>
-              <div className="settings-toggle-row">
-                <label>启用 Computer Use</label>
-                <button className={`toggle ${computerUseEnabled ? "on" : "off"}`} onClick={() => toggleComputerUse(!computerUseEnabled)}>
-                  <span className="toggle-thumb" />
-                </button>
-              </div>
-              <div className="settings-hint">允许 Agent 控制鼠标键盘、截屏和操作桌面应用。默认关闭。开启后需重新开始对话生效。</div>
-            </div>
+{/* Computer Use — disabled for now */}
             <div className="settings-section">
               <h3>快捷键</h3>
               <div className="text-sm text-secondary" style={{ lineHeight: 1.8 }}>
