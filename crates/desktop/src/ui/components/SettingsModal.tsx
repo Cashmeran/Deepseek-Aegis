@@ -5,7 +5,7 @@ type SettingsFields = { apiKey: string; model: string; };
 
 const AVAILABLE_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
 
-type TabId = "general" | "context" | "mcp" | "logs";
+type TabId = "general" | "mcp" | "logs";
 
 export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
   onClose: () => void; apiKey: string; model: string; onSave: (f: SettingsFields) => void; activeCwd?: string;
@@ -29,31 +29,18 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
     if (activeCwd) window.__TAURI__?.core?.invoke("set_computer_use_enabled", { cwd: activeCwd, enabled: v });
   };
 
-  const [ctxMaxTurns, setCtxMaxTurns] = useState(25);
-  const [ctxVerify, setCtxVerify] = useState(true);
-  const [ctxMaxTokens, setCtxMaxTokens] = useState("0");
-  useEffect(() => {
-    if (!activeCwd) return;
-    window.__TAURI__?.core?.invoke<{maxTurns:number;verifyBeforeOutput:boolean;maxContextTokens:number}>("get_compaction_config", { cwd: activeCwd })
-      .then(c => { if (c) { setCtxMaxTurns(c.maxTurns); setCtxVerify(c.verifyBeforeOutput); setCtxMaxTokens(String(c.maxContextTokens||0)); } }).catch(() => {});
-  }, [activeCwd]);
-
   const [mcpContent, setMcpContent] = useState("加载中…");
   useEffect(() => {
     if (!activeCwd) return;
     window.__TAURI__?.core?.invoke<string>("get_mcp_config", { cwd: activeCwd }).then(setMcpContent).catch(() => setMcpContent("{}"));
   }, [activeCwd]);
 
-  const saveCtx = () => {
-    if (!activeCwd) return;
-    window.__TAURI__?.core?.invoke("save_compaction_config", { cwd: activeCwd, maxTurns: ctxMaxTurns, verify: ctxVerify, maxCtx: parseInt(ctxMaxTokens)||0 });
-  };
   const saveMcp = () => { if (activeCwd) window.__TAURI__?.core?.invoke("save_mcp_config", { cwd: activeCwd, content: mcpContent }); };
   const openLogDir = () => { window.__TAURI__?.core?.invoke("open_log_dir").catch(() => {}); };
   const openMcpDir = () => { if (activeCwd) window.__TAURI__?.core?.invoke("open_mcp_config_dir", { cwd: activeCwd }).catch(() => {}); };
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: "general", label: "通用" }, { id: "context", label: "上下文" }, { id: "mcp", label: "MCP" }, { id: "logs", label: "日志" }
+    { id: "general", label: "通用" }, { id: "mcp", label: "MCP" }, { id: "logs", label: "日志" }
   ];
 
   return (
@@ -97,25 +84,6 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
             </div>
             <div style={{ paddingTop: 12, borderTop: "1px solid var(--border)" }}>
               <button className="btn btn-primary" onClick={() => { onSave({ apiKey: key, model: mdl }); onClose(); }}>保存并关闭</button>
-            </div>
-          </>}
-          {tab === "context" && <>
-            <div className="settings-section">
-              <h3>上下文压缩</h3>
-              <span className="settings-field-label">最大轮次</span>
-              <input className="input" type="number" value={ctxMaxTurns} onChange={e => setCtxMaxTurns(Number(e.target.value))} min={5} max={100} />
-              <div className="settings-hint" style={{ marginBottom: 10 }}>超过此轮次数自动触发上下文折叠。建议: 15-30</div>
-              <span className="settings-field-label">上下文上限 (tokens, 0=自动)</span>
-              <input className="input" type="number" value={ctxMaxTokens} onChange={e => setCtxMaxTokens(e.target.value)} min={0} />
-              <div className="settings-hint" style={{ marginBottom: 10 }}>0 = 使用模型最大窗口的 80%。设置后覆盖自动检测</div>
-              <div className="settings-toggle-row">
-                <label>输出前验证</label>
-                <button className={`toggle ${ctxVerify ? "on" : "off"}`} onClick={() => setCtxVerify(!ctxVerify)}>
-                  <span className="toggle-thumb" />
-                </button>
-              </div>
-              <div className="settings-hint">Agent 输出代码后自动跑 cargo check + cargo test 验证</div>
-              <button className="btn btn-primary btn-sm" onClick={saveCtx} style={{ marginTop: 12 }}>保存上下文设置</button>
             </div>
           </>}
           {tab === "mcp" && <>
