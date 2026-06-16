@@ -18,7 +18,6 @@ Initial public release.
 - 11-section layered system prompt (Layer 0 frozen, Layer 1 semi-frozen)
 - GAAMA causal memory graph: experience → error → fix relationships
 - CraniMem gating: time decay × access frequency × causal relevance
-- SYNAPSE retrieval: dual BM25 (string) + KNN (embedding) search
 - Code knowledge graph: tree-sitter (Rust/Python/TypeScript/JavaScript/Go) + SQLite + BFS traversal
 
 ### Tools (33 built-in)
@@ -31,20 +30,20 @@ Initial public release.
 - Infrastructure: `ask_user`, `remember`, `cron`, `sleep`, `config`, `worktree`
 
 ### Terminal UI
-- Ratatui-based TUI with syntax highlighting (syntect) and markdown rendering
+- Ratatui-based TUI with syntax highlighting and markdown rendering
 - Real-time streaming with thinking/content separation
 - Diff coloring (+green/-red) for file edits
-- Slash commands (`/model`, `/mode`, `/clear`, `/compact`, `/skill`)
-- Inline bash execution (`!cmd`)
+- Slash commands: `/compact`, `/clear`, `/resume`, `/goal`, `/export`
 - Mouse support: scroll, text selection, copy to clipboard
 - Session resume from saved conversations
 
-### Desktop (preview)
+### Desktop
 - Tauri v2 desktop application with aegis dark theme
-- DeepSeek provider with SSE streaming and reasoning_content support
-- Not included in CLI workspace — separate build
+- React + Zustand frontend with real-time streaming display
+- Session management, file tree, code graph visualization
+- `get_architectural_context` tool for code dependency analysis
+- Automatic code graph indexing on project open
 
 ### Platform
-- Windows (x86_64-msvc), Linux (x86_64-gnu), macOS (x86_64 + aarch64)
-- GitHub Actions CI/CD with tagged release automation
+- Windows, Linux, macOS
 - One-liner install via curl (Linux/macOS) or irm (Windows)
