@@ -25,17 +25,10 @@ export function ChatStarterGrid({
       action: onNew,
     },
     {
-      icon: <I.folder />,
-      tone: "emerald",
-      title: "打开项目",
-      desc: "浏览历史项目，继续之前的对话",
-      action: onNew,
-    },
-    {
       icon: <I.settings />,
       tone: "violet",
       title: "配置设置",
-      desc: "配置 API Key、模型和偏好选项",
+      desc: "配置 API Key",
       action: onSettings,
     },
   ];
