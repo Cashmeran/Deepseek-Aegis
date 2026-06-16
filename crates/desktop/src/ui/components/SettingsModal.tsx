@@ -3,8 +3,6 @@ import { I } from "../icons";
 
 type SettingsFields = { apiKey: string; model: string; };
 
-const AVAILABLE_MODELS = ["deepseek-v4-pro", "deepseek-v4-flash"];
-
 type TabId = "general" | "mcp" | "logs";
 
 export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
@@ -12,7 +10,6 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
 }): ReactElement {
   const [key, setKey] = useState(apiKey);
   const [showKey, setShowKey] = useState(false);
-  const [mdl, setMdl] = useState(model);
   const [tab, setTab] = useState<TabId>("general");
 
   const [logDir, setLogDir] = useState("加载中…");
@@ -67,23 +64,9 @@ export function SettingsModal({ onClose, apiKey, model, onSave, activeCwd }: {
                 <input className="input" type={showKey ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-…" />
                 <button onClick={() => setShowKey(!showKey)}>{showKey ? <I.eyeOff /> : <I.eye />}</button>
               </div>
-              <span className="settings-field-label">Model</span>
-              <select className="input" value={mdl} onChange={e => setMdl(e.target.value)}>
-                {AVAILABLE_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-{/* Computer Use — disabled for now */}
-            <div className="settings-section">
-              <h3>快捷键</h3>
-              <div className="text-sm text-secondary" style={{ lineHeight: 1.8 }}>
-                <div><kbd className="kbd">Ctrl+K</kbd> 命令面板</div>
-                <div><kbd className="kbd">Ctrl+B</kbd> 切换侧边栏</div>
-                <div><kbd className="kbd">Ctrl+,</kbd> 设置</div>
-                <div><kbd className="kbd">Enter</kbd> 发送 · <kbd className="kbd">Shift+Enter</kbd> 换行</div>
-              </div>
             </div>
             <div style={{ paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-              <button className="btn btn-primary" onClick={() => { onSave({ apiKey: key, model: mdl }); onClose(); }}>保存并关闭</button>
+              <button className="btn btn-primary" onClick={() => { onSave({ apiKey: key, model }); onClose(); }}>保存并关闭</button>
             </div>
           </>}
           {tab === "mcp" && <>
