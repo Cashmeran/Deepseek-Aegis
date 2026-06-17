@@ -10,7 +10,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   windows:
@@ -27,7 +26,7 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: Build CLI
+      - name: Build
         run: cargo build --release --bin aegis --bin aegis-diag
 
       - name: Package (zip)
@@ -39,29 +38,9 @@ jobs:
           cp README.md LICENSE release/ 2>/dev/null || true
           cd release && 7z a ../aegis-windows-x86_64.zip *
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Build Desktop MSI
-        working-directory: crates/desktop
-        run: |
-          npm install
-          npx @tauri-apps/cli build
-
-      - name: Upload MSI
-        shell: bash
-        run: |
-          cp crates/desktop/src-tauri/target/release/bundle/msi/*.msi aegis-desktop-x86_64.msi 2>/dev/null || echo "MSI not found"
-          cp crates/desktop/src-tauri/target/release/bundle/nsis/*.exe aegis-desktop-x86_64-setup.exe 2>/dev/null || echo "NSIS not found"
-
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            aegis-windows-x86_64.zip
-            aegis-desktop-x86_64.msi
-            aegis-desktop-x86_64-setup.exe
+          files: aegis-windows-x86_64.zip
           generate_release_notes: true
 
   linux:
