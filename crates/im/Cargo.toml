@@ -5,13 +5,13 @@ edition = "2024"
 description = "IM bridge — Feishu/WeChat/Telegram adapters for aegis Agent"
 
 [dependencies]
-aegis-core = { path = "../core" }
-reqwest = { version = "0.12", features = ["json"] }
+aegis-core.workspace = true
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+tokio-tungstenite = { workspace = true, features = ["__rustls-tls"] }
 futures-util = "0.3"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde.workspace = true
+serde_json.workspace = true
 log = "0.4"
-chrono = "0.4"
-async-trait = { workspace = true }
+chrono.workspace = true
+async-trait.workspace = true
