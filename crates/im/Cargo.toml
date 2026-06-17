@@ -8,7 +8,7 @@ description = "IM bridge — Feishu/WeChat/Telegram adapters for aegis Agent"
 aegis-core = { path = "../core" }
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { workspace = true, features = ["full"] }
-tokio-tungstenite = { workspace = true }
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
