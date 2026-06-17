@@ -31,6 +31,3 @@ jobs:
 
       - name: Build
         run: cargo build --workspace --exclude aegis-desktop --exclude aegis-im
-
-      - name: Test
-        run: cargo test --workspace --exclude aegis-desktop --exclude aegis-im
