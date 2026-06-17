@@ -76,6 +76,20 @@ effort = "max"
 
 [获取 DeepSeek API Key](https://platform.deepseek.com/api_keys)
 
+### 桌面端
+
+从 [Releases](https://github.com/Cashmeran/Deepseek-Aegis/releases) 下载 `aegis-desktop-x86_64.msi`，双击安装。无需 CLI，无需 Rust 环境。
+
+**特性：**
+
+- 图形化项目管理和会话切换
+- 代码图谱可视化 — 交互式依赖关系图，节点间 import/call/extend 关系一览
+- 文件树 — 项目目录实时浏览，点击打开
+- 代码知识图谱自动索引 — 打开项目自动扫描，`get_architectural_context` 工具可查询文件上下游依赖
+- 流式输出实时渲染
+
+桌面端和 CLI 共享 core/tools/memory/code-graph 引擎，功能对等。
+
 ---
 
 ## 使用
@@ -305,7 +319,8 @@ crates/
 ├── code-graph/   Tree-sitter 解析 + SQLite 知识图谱                2,808 行
 ├── mcp/          MCP 协议 + ACP 服务端（HTTP/SSE）                  1,834 行
 ├── sandbox/      进程级安全隔离                                      631 行
-└── desktop/      Tauri v2 桌面应用（独立，未加入 workspace）       2,180 行
+├── im/           IM 桥接层（飞书 WebSocket 长连接）                   305 行
+└── desktop/      Tauri v2 桌面应用（独立 workspace）
 ```
 
 **依赖注入设计**：core 不依赖 memory / code-graph / sandbox。全部通过 trait object + 闭包注入：
