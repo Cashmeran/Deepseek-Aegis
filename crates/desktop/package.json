@@ -7,7 +7,8 @@
 		"dev": "cargo tauri dev",
 		"dev:react": "vite",
 		"tauri:dev": "cargo tauri dev",
-		"build": "tsc -b && vite build",
+		"build": "vite build",
+			"typecheck": "tsc -b",
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"tauri:build": "cargo tauri build"
@@ -28,6 +29,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.2",
+		"@types/node": "^25.9.3",
 		"@types/react": "^19.2.7",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^5.1.2",

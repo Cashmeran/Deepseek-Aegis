@@ -4,12 +4,12 @@ type ServerEvent = import("./src/ui/types").ServerEvent;
 interface Window {
     __TAURI__?: {
         core?: {
-            invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+            invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
         };
         event?: {
-            listen: (
+            listen: <T = unknown>(
                 event: string,
-                handler: (event: { payload: unknown }) => void
+                handler: (event: { payload: T }) => void
             ) => Promise<() => void>;
         };
     };
