@@ -30,7 +30,21 @@ jobs:
       - name: Build
         run: cargo build --release --bin aegis --bin aegis-diag
 
-      - name: Package (zip)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend deps
+        run: cd crates/desktop && npm install
+
+      - name: Build desktop (MSI)
+        run: cd crates/desktop && cargo tauri build
+
+      - name: Package CLI (zip)
         shell: bash
         run: |
           mkdir -p release
@@ -39,9 +53,18 @@ jobs:
           cp README.md LICENSE release/ 2>/dev/null || true
           cd release && 7z a ../aegis-windows-x86_64.zip *
 
+      - name: Copy MSI
+        shell: bash
+        run: |
+          cp crates/desktop/target/release/bundle/msi/*.msi aegis-desktop-x86_64.msi 2>/dev/null || true
+          cp crates/desktop/target/release/bundle/nsis/*.exe aegis-desktop-x86_64-setup.exe 2>/dev/null || true
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: aegis-windows-x86_64.zip
+          files: |
+            aegis-windows-x86_64.zip
+            aegis-desktop-x86_64.msi
+            aegis-desktop-x86_64-setup.exe
           generate_release_notes: true
 
   # ── Linux (x86_64) ─────────────────────────────────────────────────
