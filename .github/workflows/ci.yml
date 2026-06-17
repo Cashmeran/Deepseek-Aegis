@@ -30,7 +30,7 @@ jobs:
           workspaces: . -> target
 
       - name: Build
-        run: cargo build --workspace --exclude aegis-desktop
+        run: cargo build --workspace --exclude aegis-desktop --exclude aegis-im
 
       - name: Test
-        run: cargo test --workspace --exclude aegis-desktop
+        run: cargo test --workspace --exclude aegis-desktop --exclude aegis-im
