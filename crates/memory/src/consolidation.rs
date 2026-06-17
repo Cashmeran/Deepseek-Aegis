@@ -85,10 +85,11 @@ impl DreamConsolidator {
         // P2: Generate — detect cross-session patterns and create real Insights
         let mut seen_sigs: std::collections::HashMap<String, Vec<&crate::types::Episode>> = std::collections::HashMap::new();
         for ep in &episodes {
-            if ep.outcome == EpisodeOutcome::Failure
-                && let Some(ref err_sig) = ep.error_signature {
+            if ep.outcome == EpisodeOutcome::Failure {
+                if let Some(ref err_sig) = ep.error_signature {
                     seen_sigs.entry(err_sig.clone()).or_default().push(ep);
                 }
+            }
         }
 
         for (sig, eps) in &seen_sigs {

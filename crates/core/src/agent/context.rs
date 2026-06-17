@@ -213,14 +213,15 @@ impl ContextManager {
     fn extract_pinned_content(messages: &[Message]) -> String {
         let mut pinned = String::new();
         for msg in messages {
-            if let Message::System(s) = msg
-                && (s.content.starts_with("# HIGH PRIORITY")
+            if let Message::System(s) = msg {
+                if s.content.starts_with("# HIGH PRIORITY")
                     || s.content.starts_with("# User memory")
-                    || s.content.starts_with("# Project memory"))
+                    || s.content.starts_with("# Project memory")
                 {
                     pinned.push_str(&s.content);
                     pinned.push('\n');
                 }
+            }
         }
         pinned
     }

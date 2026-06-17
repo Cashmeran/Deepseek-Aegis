@@ -31,10 +31,11 @@ impl ToolCallRepair {
         let mut tools = tool_uses.to_vec();
 
         // Pass 1: Scavenge — 从 reasoning_content 回收泄漏的工具调用
-        if config.repair_scavenge_enabled
-            && let Some(reasoning) = reasoning {
+        if config.repair_scavenge_enabled {
+            if let Some(reasoning) = reasoning {
                 tools = Self::scavenge(tools, reasoning, config.repair_max_scavenge);
             }
+        }
 
         // Pass 2: Truncation — 修复截断 JSON
         tools = Self::fix_truncation(tools);
@@ -83,8 +84,8 @@ impl ToolCallRepair {
                 break;
             }
             // cap[0] 是完整匹配的 JSON 对象
-            if let Ok(full_match) = serde_json::from_str::<serde_json::Value>(&cap[0])
-                && let (Some(name), Some(input)) = (
+            if let Ok(full_match) = serde_json::from_str::<serde_json::Value>(&cap[0]) {
+                if let (Some(name), Some(input)) = (
                     full_match.get("name").and_then(|v| v.as_str()),
                     full_match.get("input"),
                 ) {
@@ -95,6 +96,7 @@ impl ToolCallRepair {
                     });
                     extracted += 1;
                 }
+            }
         }
         tools
     }

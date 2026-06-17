@@ -4,20 +4,14 @@ pub use tui_textarea::{CursorMove, TextArea};
 
 pub struct InputState { pub textarea: TextArea<'static>, pub version: u32, pub lines_cache: Vec<String> }
 
-fn refresh_cache(s: &mut InputState) { s.lines_cache = s.textarea.lines().to_vec(); }
+fn refresh_cache(s: &mut InputState) { s.lines_cache = s.textarea.lines().iter().cloned().collect(); }
 pub struct InputSnapshot(String);
 pub const PASTE_PLACEHOLDER_CHAR_THRESHOLD: usize = 10000;
 pub struct InputGeometry { pub prompt: Rect, pub text: Rect, pub area: Rect }
 pub fn compute_render_geometry(area: Rect, _hint_rows: usize) -> InputGeometry { InputGeometry { prompt: area, text: area, area } }
 
-impl Default for InputState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl InputState {
-    pub fn new() -> Self { let ta = TextArea::default(); let lc = ta.lines().to_vec(); Self { textarea: ta, version: 0, lines_cache: lc } }
+    pub fn new() -> Self { let ta = TextArea::default(); let lc = ta.lines().iter().cloned().collect(); Self { textarea: ta, version: 0, lines_cache: lc } }
     pub fn clear(&mut self) { self.textarea = TextArea::default(); self.lines_cache.clear(); }
     pub fn cursor(&self) -> (usize, usize) { self.textarea.cursor() }
     pub fn cursor_col(&self) -> usize { self.textarea.cursor().1 }

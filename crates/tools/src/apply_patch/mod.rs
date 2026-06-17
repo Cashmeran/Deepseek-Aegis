@@ -80,13 +80,14 @@ fn parse_patch(patch_text: &str) -> AgentResult<Vec<FilePatch>> {
             }
         } else if line.starts_with("@@") {
             // @@ -old_start,old_count +new_start,new_count @@
-            if let Some(h) = current_hunk.take()
-                && let Some(ref mut f) = current { f.hunks.push(h); }
+            if let Some(h) = current_hunk.take() {
+                if let Some(ref mut f) = current { f.hunks.push(h); }
+            }
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 3 {
                 let old: Vec<usize> = parts[1].trim_start_matches('-').split(',').filter_map(|s| s.parse().ok()).collect();
                 let _new: Vec<usize> = parts[2].trim_start_matches('+').split(',').filter_map(|s| s.parse().ok()).collect();
-                if !old.is_empty() {
+                if old.len() >= 1 {
                     current_hunk = Some(Hunk {
                         old_start: old[0].max(1),
                         lines: Vec::new(),
@@ -103,10 +104,12 @@ fn parse_patch(patch_text: &str) -> AgentResult<Vec<FilePatch>> {
         }
     }
 
-    if let Some(h) = current_hunk.take()
-        && let Some(ref mut f) = current { f.hunks.push(h); }
-    if let Some(f) = current.take()
-        && !f.old_path.is_empty() { patches.push(f); }
+    if let Some(h) = current_hunk.take() {
+        if let Some(ref mut f) = current { f.hunks.push(h); }
+    }
+    if let Some(f) = current.take() {
+        if !f.old_path.is_empty() { patches.push(f); }
+    }
 
     Ok(patches)
 }

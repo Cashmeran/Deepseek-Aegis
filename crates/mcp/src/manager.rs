@@ -18,12 +18,6 @@ pub struct McpConnectionManager {
     all_resources: RwLock<Vec<(String, McpResource)>>,
 }
 
-impl Default for McpConnectionManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl McpConnectionManager {
     pub fn new() -> Self {
         Self {

@@ -177,8 +177,8 @@ impl<L: LlmClient> AgentLoop<L> {
                 self.phase = HarnessPhase::Evaluator;
             }
 
-            if let Some(ref contract) = self.active_contract
-                && !contract.acceptance_criteria.is_empty() {
+            if let Some(ref contract) = self.active_contract {
+                if !contract.acceptance_criteria.is_empty() {
                     match self.check_goal_completed(&content).await {
                         Some(ref answer) if answer == "YES" => {
                             on_stream(crate::llm::client::StreamEvent::TextDelta(
@@ -200,6 +200,7 @@ impl<L: LlmClient> AgentLoop<L> {
                         _ => {}
                     }
                 }
+            }
 
             self.conversation.add_message(Message::Assistant(crate::types::message::AssistantMessage {
                 id: format!("assist_{}", uuid::Uuid::new_v4()),

@@ -12,17 +12,18 @@ impl<L: LlmClient> AgentLoop<L> {
     /// After tool execution, check if a plan tool was called → auto-create SprintContract.
     pub(crate) fn try_auto_contract(&mut self, tool_uses: &[ToolUse]) {
         for tu in tool_uses {
-            if tu.name == "plan"
-                && let Some(contract) = crate::agent::harness::SprintContract::from_plan_json(&tu.input) {
+            if tu.name == "plan" {
+                if let Some(contract) = crate::agent::harness::SprintContract::from_plan_json(&tu.input) {
                     tracing::info!("SprintContract auto-created from plan tool: {}", contract.objective);
                     self.set_contract(contract);
                     if self.phase() == crate::agent::system_prompt::HarnessPhase::Planner {
                         self.set_phase(crate::agent::system_prompt::HarnessPhase::Generator);
                     }
                 }
-            if tu.name == "todo_write"
-                && let Some(ref mut contract) = self.active_contract
-                    && let Some(tasks) = tu.input.get("tasks").and_then(|v| v.as_array()) {
+            }
+            if tu.name == "todo_write" {
+                if let Some(ref mut contract) = self.active_contract {
+                    if let Some(tasks) = tu.input.get("tasks").and_then(|v| v.as_array()) {
                         let todos: Vec<(String, TodoStatus)> = tasks.iter().map(|t| {
                             let subject = t.get("subject").and_then(|v| v.as_str()).unwrap_or("").to_string();
                             let status = match t.get("status").and_then(|v| v.as_str()).unwrap_or("pending") {
@@ -34,6 +35,8 @@ impl<L: LlmClient> AgentLoop<L> {
                         }).collect();
                         contract.sync_todos(&todos);
                     }
+                }
+            }
         }
     }
 
@@ -162,7 +165,7 @@ impl<L: LlmClient> AgentLoop<L> {
                     });
                     handles.push(handle);
                 } else {
-                    let result = self.registry.execute(tu, &ctx).await;
+                    let result = self.registry.execute(&tu, &ctx).await;
                     match result {
                         Ok(r) => results.push(r),
                         Err(e) => results.push(ToolResultMessage {

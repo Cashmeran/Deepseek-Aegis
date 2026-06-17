@@ -27,12 +27,13 @@ pub fn load_mcp_config(base_dir: &Path) -> Result<McpConfig, String> {
     if agent_config.exists() {
         match std::fs::read_to_string(&agent_config) {
             Ok(content) => {
-                if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content)
-                    && let Some(mcp) = config.get("mcpServers") {
+                if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(mcp) = config.get("mcpServers") {
                         let servers: HashMap<String, McpServerEntry> = serde_json::from_value(mcp.clone())
                             .map_err(|e| format!("mcp.json parse error: {}", e))?;
                         return Ok(McpConfig { mcp_servers: servers });
                     }
+                }
             }
             Err(e) => {
                 tracing::warn!("Cannot read .agent/config.json: {}", e);

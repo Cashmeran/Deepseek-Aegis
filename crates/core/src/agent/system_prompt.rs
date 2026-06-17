@@ -644,12 +644,13 @@ YOLO MODE — All tools, zero confirmations. Verify thoroughly before reporting.
         prompt.push_str(&format!("## Mode: {}\n\n", mode_desc));
 
         // Layer 2: Skills
-        if let Some(skills) = skills_text
-            && !skills.is_empty() {
+        if let Some(skills) = skills_text {
+            if !skills.is_empty() {
                 prompt.push_str("## Active Skills\n");
                 prompt.push_str(skills);
                 prompt.push('\n');
             }
+        }
 
         prompt
     }

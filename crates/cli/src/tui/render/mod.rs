@@ -396,7 +396,7 @@ pub(crate) fn render(frame: &mut Frame, app: &mut App) {
         let space_pos = prefix.find(' ').unwrap_or(prefix.len());
         let cmd_name = &prefix[..space_pos];
         let matches = App::command_matches(cmd_name);
-        if !matches.is_empty() && !cmd_name.is_empty() {
+        if !matches.is_empty() && cmd_name.len() >= 1 {
             hint_text = matches.iter().take(8).map(|c| format!("/{c}")).collect::<Vec<_>>().join("  ");
         }
     }
@@ -420,7 +420,7 @@ pub(crate) fn render(frame: &mut Frame, app: &mut App) {
                     let cmd_part = &line[..space_pos];
                     let cmd_name = cmd_part.trim_start_matches('/');
                     let rest = &line[space_pos..];
-                    spans.push(Span::styled(prompt.to_string(), normal));
+                    spans.push(Span::styled(format!("{prompt}"), normal));
                     if App::is_valid_command(cmd_name) {
                         spans.push(Span::styled(cmd_part.to_string(), purple));
                     } else {
@@ -482,7 +482,7 @@ pub(crate) fn render(frame: &mut Frame, app: &mut App) {
 
     // Always show context bar
     let bar_w: usize = 8;
-    let filled: usize = ((ctx_pct / 100.0 * bar_w as f64) as usize).min(bar_w);
+    let filled: usize = ((ctx_pct as f64 / 100.0 * bar_w as f64) as usize).min(bar_w);
     let empty: usize = bar_w - filled;
     let bar_color = if ctx_pct > 80.0 { Color::Red } else if ctx_pct > 50.0 { Color::Yellow } else { Color::DarkGray };
     right_parts.push(Span::styled(format!(" {}K/{}K", app.tokens_in / 1000, ctx_max / 1000), Style::default().fg(Color::Gray)));

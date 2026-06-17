@@ -215,13 +215,14 @@ pub fn find_enclosing_function(node: tree_sitter::Node, source: &[u8]) -> Option
         {
             // 查找函数名
             for i in 0..parent.child_count() {
-                if let Some(child) = parent.child(i)
-                    && (child.kind() == "identifier"
+                if let Some(child) = parent.child(i) {
+                    if child.kind() == "identifier"
                         || child.kind() == "field_identifier"
-                        || child.kind() == "type_identifier")
+                        || child.kind() == "type_identifier"
                     {
                         return child.utf8_text(source).ok().map(|s| s.to_string());
                     }
+                }
             }
             return None; // 找不到名字
         }

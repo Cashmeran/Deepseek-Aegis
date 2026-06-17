@@ -154,8 +154,8 @@ impl App {
             }
             StreamEvent::ToolResult { id, name, is_error, output, elapsed_ms } => {
                 for msg in self.messages.iter_mut().rev() {
-                    if let Msg::Tool { id: tid, done, ok, detail, elapsed_ms: tool_elapsed, .. } = msg
-                        && *tid == id {
+                    if let Msg::Tool { id: tid, done, ok, detail, elapsed_ms: tool_elapsed, .. } = msg {
+                        if *tid == id {
                             *done = true;
                             *ok = !is_error;
                             *tool_elapsed = elapsed_ms;
@@ -167,6 +167,7 @@ impl App {
                             }
                             break;
                         }
+                    }
                 }
             }
             StreamEvent::AskUser { question, header, options } => {
@@ -182,7 +183,7 @@ impl App {
             }
             StreamEvent::ToolProgress { tool_use_id: _, line } => {
                 if let Some(Msg::Tool { detail, .. }) = self.messages.last_mut() {
-                    *detail = line.trim().chars().take(500).collect::<String>().to_string();
+                    *detail = format!("{}", line.trim().chars().take(500).collect::<String>());
                 }
             }
             StreamEvent::Done(resp) => {
@@ -280,7 +281,8 @@ impl App {
         match name {
             "clear" => { self.messages.clear(); self.scroll = 0; self.last_assist_idx = None; None }
             "model" => {
-                let current_effort = self.shared_config.as_ref().map(|c| c.read().unwrap().reasoning_effort.clone())
+                let current_effort = self.shared_config.as_ref()
+                    .and_then(|c| Some(c.read().unwrap().reasoning_effort.clone()))
                     .unwrap_or_else(|| "max".into());
                 let effort_idx = EFFORTS.iter().position(|e| *e == current_effort).unwrap_or(2);
                 let model_idx = MODELS.iter().position(|m| m.0 == self.model).unwrap_or(0);
@@ -320,7 +322,7 @@ impl App {
             "thinking" | "verify" | "snapshot" | "snap" => self.toggle_config_bool(name),
             "status" => {
                 let cfg = self.shared_config.as_ref().map(|c| c.read().unwrap().clone());
-                let thinking = cfg.as_ref().is_none_or(|c| c.thinking_enabled);
+                let thinking = cfg.as_ref().map_or(true, |c| c.thinking_enabled);
                 Some(format!("Mode: {} | Model: {} | Thinking: {} | Tokens: {} in / {} out | Cost: {}",
                     self.mode, self.model,
                     if thinking { "ON" } else { "OFF" },
@@ -373,8 +375,8 @@ impl App {
                         format!(".aegis/sessions/{}", arg)
                     };
                     let path = if path.ends_with(".json") { path } else { format!("{}.json", path) };
-                    if let Ok(data) = std::fs::read_to_string(&path)
-                        && let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                    if let Ok(data) = std::fs::read_to_string(&path) {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                             let input = v.get("user_input").and_then(|s| s.as_str()).unwrap_or("");
                             // Load messages from session
                             if let Some(msgs) = v.get("messages").and_then(|m| m.as_array()) {
@@ -395,6 +397,7 @@ impl App {
                             self.turn_start = Some(Instant::now());
                             return Some(format!("Session loaded. Resuming: {}", input.chars().take(100).collect::<String>()));
                         }
+                    }
                     return Some(format!("Session '{}' not found.", arg));
                 }
                 // No argument: show picker
@@ -402,14 +405,16 @@ impl App {
                 if let Ok(entries) = std::fs::read_dir(".aegis/sessions") {
                     for e in entries.filter_map(|e| e.ok()) {
                         let name = e.file_name().to_string_lossy().to_string();
-                        if name.ends_with(".json")
-                            && let Ok(data) = std::fs::read_to_string(e.path())
-                                && let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                        if name.ends_with(".json") {
+                            if let Ok(data) = std::fs::read_to_string(e.path()) {
+                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
                                     let turn = v.get("turn").and_then(|t| t.as_u64()).unwrap_or(0);
                                     let input = v.get("user_input").and_then(|s| s.as_str()).unwrap_or("");
                                     let ts = v.get("timestamp").and_then(|s| s.as_str()).unwrap_or("");
                                     sessions.push((name, turn, input.to_string(), ts.to_string()));
                                 }
+                            }
+                        }
                     }
                 }
                 sessions.sort_by(|a, b| b.1.cmp(&a.1));
@@ -450,7 +455,7 @@ impl App {
                         } else {
                             let files: Vec<String> = stat.lines().filter_map(|l| {
                                 let parts: Vec<&str> = l.split('|').collect();
-                                if !parts.is_empty() { Some(parts[0].trim().to_string()) } else { None }
+                                if parts.len() >= 1 { Some(parts[0].trim().to_string()) } else { None }
                             }).collect();
                             let prompt = format!("Rollback: revert the following {} changed files to their last committed state. Use git checkout for each file:\n{}", files.len(), files.join("\n"));
                             self.messages.push(Msg::User(prompt.clone()));
@@ -467,7 +472,7 @@ impl App {
                 if arg.is_empty() { Some("Usage: /goal <objective> | <criterion1>, <criterion2>, ...".into()) }
                 else {
                     let parts: Vec<&str> = arg.split('|').collect();
-                    let objective = parts.first().unwrap_or(&"").trim();
+                    let objective = parts.get(0).unwrap_or(&"").trim();
                     let criteria: Vec<String> = if parts.len() > 1 {
                         parts[1].split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
                     } else { vec![] };
@@ -681,7 +686,7 @@ impl Tool for ScanCodebaseTool {
     async fn execute(self: Arc<Self>, tool_use: &ToolUse, _ctx: &ToolContext) -> AgentResult<ToolResultMessage> {
         let start = std::time::Instant::now();
         let dir = tool_use.input.get("directory").and_then(|v| v.as_str())
-            .map(std::path::PathBuf::from)
+            .map(|d| std::path::PathBuf::from(d))
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
         match aegis_code_graph::SqliteGraphStore::open(&self.db_path) {
@@ -1358,9 +1363,9 @@ fn spawn_agent(
             if text.starts_with("__RESUME__") {
                 let path = text.trim_start_matches("__RESUME__").trim();
                 // Load conversation history from session file
-                if let Ok(data) = std::fs::read_to_string(path)
-                    && let Ok(v) = serde_json::from_str::<serde_json::Value>(&data)
-                        && let Some(msgs) = v.get("messages").and_then(|m| m.as_array()) {
+                if let Ok(data) = std::fs::read_to_string(path) {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                        if let Some(msgs) = v.get("messages").and_then(|m| m.as_array()) {
                             // Rebuild conversation state from saved messages
                             let mut healed: Vec<aegis_core::types::message::Message> = msgs.iter().filter_map(|m| {
                                 let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("");
@@ -1394,6 +1399,8 @@ fn spawn_agent(
                                 agent.conversation_mut().add_message(msg);
                             }
                         }
+                    }
+                }
                 let _ = stream_tx.send(StreamEvent::TextDelta("[Session restored — resuming from where you left off]\n".into()));
                 let _ = stream_tx.send(StreamEvent::Done(aegis_core::llm::client::LlmResponse {
                     content: None, reasoning: None, tool_uses: vec![],
@@ -1484,7 +1491,8 @@ fn spawn_agent(
 
             // Episode: open new memory episode
             let episode_id = episode_mgr2.as_ref()
-                .and_then(|mgr| mgr.open("default", &text).ok());
+                .map(|mgr| mgr.open("default", &text).ok())
+                .flatten();
 
             // Pre-turn snapshot
             let snap_label = format!("turn-{}", turn_count);
@@ -1510,7 +1518,7 @@ fn spawn_agent(
                 let response_text = result.as_ref().map(|o| o.content.as_str()).unwrap_or("");
                 let error_sig = result.as_ref().err().map(|e| aegis_memory::compute_error_signature(&e.to_string()));
                 let correction = if aegis_memory::is_user_correction(&text) { Some(text.as_str()) } else { None };
-                let _ = mgr.close(ep_id, outcome, response_text, error_sig.as_deref(), correction);
+                let _ = mgr.close(&ep_id, outcome, response_text, error_sig.as_deref(), correction);
             }
 
             // Auto-save session after each turn (with message history for /resume)
@@ -1540,9 +1548,9 @@ fn spawn_agent(
             }
 
             // Consolidation: check every 5 turns
-            if turn_count.is_multiple_of(5)
-                && let Some(ref consolidator) = consolidator2
-                    && consolidator.should_consolidate().unwrap_or(false) {
+            if turn_count % 5 == 0 {
+                if let Some(ref consolidator) = consolidator2 {
+                    if consolidator.should_consolidate().unwrap_or(false) {
                         let c = Arc::clone(consolidator);
                         tokio::task::spawn_blocking(move || {
                             match c.consolidate() {
@@ -1551,6 +1559,8 @@ fn spawn_agent(
                             }
                         });
                     }
+                }
+            }
 
             // Incremental code-graph update: if graph DB exists, re-index files
             // modified this turn via git diff. Cheap — SHA256 fast-path skips
@@ -1617,24 +1627,27 @@ fn init_project_dir() {
 
     // Write default config if missing
     let config_path = aegis_dir.join("config.toml");
-    if !config_path.exists()
-        && let Ok(mut f) = std::fs::File::create(&config_path) {
+    if !config_path.exists() {
+        if let Ok(mut f) = std::fs::File::create(&config_path) {
             use std::io::Write;
             let _ = f.write_all(AEGIS_DEFAULT_CONFIG.as_bytes());
         }
+    }
 
     // Append Aegis entries to .gitignore
     let gitignore_path = root.join(".gitignore");
     let entries = GITIGNORE_ENTRIES.trim();
     if gitignore_path.exists() {
-        if let Ok(existing) = std::fs::read_to_string(&gitignore_path)
-            && !existing.contains("# Aegis — local-only project files")
-                && let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&gitignore_path) {
+        if let Ok(existing) = std::fs::read_to_string(&gitignore_path) {
+            if !existing.contains("# Aegis — local-only project files") {
+                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(&gitignore_path) {
                     use std::io::Write;
                     let _ = writeln!(f);
                     let _ = f.write_all(entries.as_bytes());
                     let _ = f.write_all(b"\n");
                 }
+            }
+        }
     } else {
         if let Ok(mut f) = std::fs::File::create(&gitignore_path) {
             use std::io::Write;
@@ -1661,9 +1674,9 @@ fn load_knowledge_index() -> String {
     if let Ok(entries) = std::fs::read_dir(&knowledge_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|e| e == "md") && path.file_stem().is_none_or(|s| s != "INDEX") {
+            if path.extension().map_or(false, |e| e == "md") && path.file_stem().map_or(true, |s| s != "INDEX") {
                 let name = path.file_stem()
-                    .map(|s| s.to_string_lossy().replace(['-', '_'], " "))
+                    .map(|s| s.to_string_lossy().replace('-', " ").replace('_', " "))
                     .unwrap_or_default();
                 // Try to extract first heading as description
                 let desc = std::fs::read_to_string(&path).ok()
@@ -1693,14 +1706,16 @@ fn load_md_dir(dir: &str) -> String {
     if let Ok(entries) = std::fs::read_dir(&dir_path) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|e| e == "md")
-                && let Ok(content) = std::fs::read_to_string(&path)
-                    && !content.trim().is_empty() {
+            if path.extension().map_or(false, |e| e == "md") {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if !content.trim().is_empty() {
                         let name = path.file_stem()
                             .map(|s| s.to_string_lossy().to_string())
                             .unwrap_or_default();
                         out.push(format!("### {name}\n{content}"));
                     }
+                }
+            }
         }
     }
     out.join("\n\n")
@@ -1790,13 +1805,16 @@ fn main() -> anyhow::Result<()> {
     let overview_db_path = std::path::PathBuf::from(".aegis/code-graph/graph.db");
     tokio::task::spawn_blocking(move || {
         if !overview_db_path.exists() { return; }
-        if let Ok(store) = aegis_code_graph::SqliteGraphStore::open(&overview_db_path) {
-            match aegis_code_graph::get_codebase_overview(&store) {
-                Ok(overview) if !overview.is_empty() => {
-                    let _ = overview_tx.send(format!("__OVERVIEW__{}", overview));
+        match aegis_code_graph::SqliteGraphStore::open(&overview_db_path) {
+            Ok(store) => {
+                match aegis_code_graph::get_codebase_overview(&store) {
+                    Ok(overview) if !overview.is_empty() => {
+                        let _ = overview_tx.send(format!("__OVERVIEW__{}", overview));
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
+            Err(_) => {}
         }
     });
 
@@ -1869,8 +1887,8 @@ fn main() -> anyhow::Result<()> {
 
     let acp_tx_ref = acp_tx.clone();
     while !app.quit && !shutdown.load(Ordering::SeqCst) {
-        if crossterm::event::poll(Duration::from_millis(10)).unwrap_or(false)
-            && let Ok(event) = crossterm::event::read() {
+        if crossterm::event::poll(Duration::from_millis(10)).unwrap_or(false) {
+            if let Ok(event) = crossterm::event::read() {
                 match event {
                     CEvent::Key(k) if k.kind == KeyEventKind::Press => {
                         let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
@@ -1879,8 +1897,8 @@ fn main() -> anyhow::Result<()> {
                         if let Some(ref mut sd) = app.session_dialog {
                             match (k.code, ctrl) {
                                 (KeyCode::Esc, false) => { app.session_dialog = None; }
-                                (KeyCode::Up, false) if sd.session_idx > 0 => { sd.session_idx -= 1; }
-                                (KeyCode::Down, false) if sd.session_idx + 1 < sd.sessions.len() => { sd.session_idx += 1; }
+                                (KeyCode::Up, false) => { if sd.session_idx > 0 { sd.session_idx -= 1; } }
+                                (KeyCode::Down, false) => { if sd.session_idx + 1 < sd.sessions.len() { sd.session_idx += 1; } }
                                 (KeyCode::Enter, _) => {
                                     let (filename, _, _, _) = &sd.sessions[sd.session_idx];
                                     let marker = format!("/resume {}", filename.trim_end_matches(".json"));
@@ -1898,8 +1916,8 @@ fn main() -> anyhow::Result<()> {
                         if let Some(ref mut sd) = app.skill_dialog {
                             match (k.code, ctrl) {
                                 (KeyCode::Esc, false) => { app.skill_dialog = None; }
-                                (KeyCode::Up, false) if sd.skill_idx > 0 => { sd.skill_idx -= 1; }
-                                (KeyCode::Down, false) if sd.skill_idx + 1 < sd.skills.len() => { sd.skill_idx += 1; }
+                                (KeyCode::Up, false) => { if sd.skill_idx > 0 { sd.skill_idx -= 1; } }
+                                (KeyCode::Down, false) => { if sd.skill_idx + 1 < sd.skills.len() { sd.skill_idx += 1; } }
                                 (KeyCode::Enter, _) => {
                                     let (name, _) = &sd.skills[sd.skill_idx];
                                     let marker = format!("/skill {}", name);
@@ -1917,10 +1935,10 @@ fn main() -> anyhow::Result<()> {
                         if let Some(ref mut md) = app.model_dialog {
                             match (k.code, ctrl) {
                                 (KeyCode::Esc, false) => { app.model_dialog = None; }
-                                (KeyCode::Up, false) if md.model_idx > 0 => { md.model_idx -= 1; }
-                                (KeyCode::Down, false) if md.model_idx + 1 < md.models.len() => { md.model_idx += 1; }
-                                (KeyCode::Left, false) if md.effort_idx > 0 => { md.effort_idx -= 1; }
-                                (KeyCode::Right, false) if md.effort_idx + 1 < EFFORTS.len() => { md.effort_idx += 1; }
+                                (KeyCode::Up, false) => { if md.model_idx > 0 { md.model_idx -= 1; } }
+                                (KeyCode::Down, false) => { if md.model_idx + 1 < md.models.len() { md.model_idx += 1; } }
+                                (KeyCode::Left, false) => { if md.effort_idx > 0 { md.effort_idx -= 1; } }
+                                (KeyCode::Right, false) => { if md.effort_idx + 1 < EFFORTS.len() { md.effort_idx += 1; } }
                                 (KeyCode::Enter, _) => {
                                     let (model_id, _) = md.models[md.model_idx];
                                     app.model = model_id.to_string();
@@ -1978,13 +1996,14 @@ fn main() -> anyhow::Result<()> {
                                         app.dialog = None;
                                     }
                                 }
-                                (KeyCode::Backspace, _) if dlg.in_custom
-                                    && dlg.custom_cursor > 0 => {
+                                (KeyCode::Backspace, _) if dlg.in_custom => {
+                                    if dlg.custom_cursor > 0 {
                                         let mut p = dlg.custom_cursor - 1;
                                         while p > 0 && !dlg.custom_input.is_char_boundary(p) { p -= 1; }
                                         dlg.custom_input.remove(p);
                                         dlg.custom_cursor = p;
                                     }
+                                }
                                 (KeyCode::Char(ch), false) if dlg.in_custom => {
                                     dlg.custom_input.insert(dlg.custom_cursor, ch);
                                     dlg.custom_cursor += ch.len_utf8();
@@ -2136,18 +2155,20 @@ fn main() -> anyhow::Result<()> {
                                 app.sel_end = Some(line);
                                 throttle.force = true;
                             }
-                            MouseEventKind::Up(MouseButton::Left)
+                            MouseEventKind::Up(MouseButton::Left) => {
                                 // Clear single-line click (no actual drag)
-                                if app.sel_start == app.sel_end => {
+                                if app.sel_start == app.sel_end {
                                     app.sel_start = None; app.sel_end = None;
                                 }
                                 // Multi-line drag selections stay until Esc or Ctrl+C
+                            }
                             _ => {}
                         }
                     }
                     _ => {}
                 }
             }
+        }
 
         let mut got_stream = false;
         while let Ok(event) = app.stream_rx.try_recv() {

@@ -72,12 +72,16 @@ impl HookDispatcher {
             for hook in list {
                 let cmd = hook.command.clone();
                 std::thread::spawn(move || {
-                    if let Ok(mut child) = Command::new(if cfg!(windows) { "cmd" } else { "sh" })
+                    match Command::new(if cfg!(windows) { "cmd" } else { "sh" })
                         .arg(if cfg!(windows) { "/C" } else { "-c" })
                         .arg(&cmd)
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
-                        .spawn() { let _ = child.wait(); }
+                        .spawn()
+                    {
+                        Ok(mut child) => { let _ = child.wait(); }
+                        Err(_) => {}
+                    }
                 });
             }
         }

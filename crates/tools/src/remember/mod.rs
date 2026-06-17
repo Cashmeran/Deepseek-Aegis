@@ -16,12 +16,6 @@ pub struct RememberTool {
     recall: Option<Arc<dyn Fn(&str, &str, &str) -> String + Send + Sync>>,
 }
 
-impl Default for RememberTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RememberTool {
     pub fn new() -> Self { Self { recall: None } }
 

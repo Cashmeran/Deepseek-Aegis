@@ -11,12 +11,6 @@ pub struct Throttle {
     pub force: bool,
 }
 
-impl Default for Throttle {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Throttle {
     pub fn new() -> Self {
         Self { last: Instant::now() - Duration::from_millis(FRAME_MS), force: false }

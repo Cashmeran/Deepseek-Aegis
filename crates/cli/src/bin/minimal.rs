@@ -158,10 +158,11 @@ impl App {
                 self.input.clear();
                 self.cursor_byte = 0;
             }
-            (KeyCode::Enter, _)
-                if !self.input.trim().is_empty() => {
+            (KeyCode::Enter, _) => {
+                if !self.input.trim().is_empty() {
                     return KeyAction::Submit;
                 }
+            }
             (KeyCode::Char(ch), false) => self.insert(ch),
             (KeyCode::Backspace, _) => self.backspace(),
             (KeyCode::Delete, _) => self.delete_forward(),
@@ -647,8 +648,8 @@ fn main() -> anyhow::Result<()> {
     // Main loop
     while !app.quit && !shutdown.load(Ordering::SeqCst) {
         // ── 1. Poll terminal events ──
-        if crossterm::event::poll(Duration::from_millis(10)).unwrap_or(false)
-            && let Ok(event) = crossterm::event::read() {
+        if crossterm::event::poll(Duration::from_millis(10)).unwrap_or(false) {
+            if let Ok(event) = crossterm::event::read() {
                 match event {
                     CEvent::Key(k) if k.kind == KeyEventKind::Press => {
                         match app.handle_key(k.code, k.modifiers) {
@@ -674,6 +675,7 @@ fn main() -> anyhow::Result<()> {
                     _ => {}
                 }
             }
+        }
 
         // ── 2. Drain agent stream events ──
         let mut got_stream = false;
