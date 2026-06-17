@@ -7,7 +7,7 @@
     "frontendDist": "../dist-react",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npx vite",
-    "beforeBuildCommand": "bun run build"
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "withGlobalTauri": true,
