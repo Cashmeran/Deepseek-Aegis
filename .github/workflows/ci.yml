@@ -30,4 +30,4 @@ jobs:
           workspaces: . -> target
 
       - name: Build
-        run: cargo build --workspace --exclude aegis-desktop --exclude aegis-im
+        run: cargo build -p aegis-core -p aegis-tools -p aegis-code-graph -p aegis-memory -p aegis-sandbox -p aegis-mcp -p aegis-cli
