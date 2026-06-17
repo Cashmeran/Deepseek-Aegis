@@ -45,6 +45,6 @@ rustyline = "15"                                       # readline 行编辑
 axum = { version = "0.8", features = ["json"] }       # MCP SSE HTTP server
 tokio-stream = "0.1"
 async-trait = "0.1"
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls"] }
 globset = "0.4"
 regex = "1"
