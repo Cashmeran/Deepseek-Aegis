@@ -10,9 +10,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── Windows (x86_64) ──────────────────────────────────────────────
   windows:
     runs-on: windows-latest
     steps:
@@ -27,24 +27,10 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: Build
+      - name: Build CLI
         run: cargo build --release --bin aegis --bin aegis-diag
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
-      - name: Install frontend deps
-        run: cd crates/desktop && npm install
-
-      - name: Build desktop (MSI)
-        run: cd crates/desktop && cargo tauri build
-
-      - name: Package CLI (zip)
+      - name: Package (zip)
         shell: bash
         run: |
           mkdir -p release
@@ -53,11 +39,22 @@ jobs:
           cp README.md LICENSE release/ 2>/dev/null || true
           cd release && 7z a ../aegis-windows-x86_64.zip *
 
-      - name: Copy MSI
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Desktop MSI
+        working-directory: crates/desktop
+        run: |
+          npm install
+          npx @tauri-apps/cli build
+
+      - name: Upload MSI
         shell: bash
         run: |
-          cp crates/desktop/target/release/bundle/msi/*.msi aegis-desktop-x86_64.msi 2>/dev/null || true
-          cp crates/desktop/target/release/bundle/nsis/*.exe aegis-desktop-x86_64-setup.exe 2>/dev/null || true
+          cp crates/desktop/src-tauri/target/release/bundle/msi/*.msi aegis-desktop-x86_64.msi 2>/dev/null || echo "MSI not found"
+          cp crates/desktop/src-tauri/target/release/bundle/nsis/*.exe aegis-desktop-x86_64-setup.exe 2>/dev/null || echo "NSIS not found"
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -67,7 +64,6 @@ jobs:
             aegis-desktop-x86_64-setup.exe
           generate_release_notes: true
 
-  # ── Linux (x86_64) ─────────────────────────────────────────────────
   linux:
     runs-on: ubuntu-latest
     steps:
@@ -103,7 +99,6 @@ jobs:
           files: aegis-linux-x86_64.tar.gz
           generate_release_notes: true
 
-  # ── macOS (aarch64 + x86_64) ─────────────────────────────────────
   macos:
     runs-on: macos-latest
     strategy:
