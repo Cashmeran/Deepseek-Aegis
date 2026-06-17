@@ -180,7 +180,7 @@ impl Tool for GrepTool {
         Self::search_dir(
             root, root, &re, output_mode,
             after, before, show_numbers,
-            glob_filter, type_filter.as_deref(),
+            glob_filter, type_filter,
             &mut file_matches, &walk_deadline, 0,
         );
 
@@ -193,14 +193,14 @@ impl Tool for GrepTool {
         // Apply offset
         if offset > 0 {
             let mut skipped = 0usize;
-            file_matches = file_matches.into_iter().filter(|_fm| {
+            file_matches.retain(|_fm| {
                 if skipped < offset {
                     skipped += 1;
                     false
                 } else {
                     true
                 }
-            }).collect();
+            });
         }
 
         // Apply head_limit
@@ -303,24 +303,20 @@ impl GrepTool {
 
             if path.is_file() {
                 // Binary check
-                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                    if BINARY_EXTENSIONS.contains(&ext) { continue; }
-                }
+                if let Some(ext) = path.extension().and_then(|e| e.to_str())
+                    && BINARY_EXTENSIONS.contains(&ext) { continue; }
 
                 // Glob filter
-                if let Some(g) = glob_filter {
-                    if let Ok(rel) = path.strip_prefix(root) {
+                if let Some(g) = glob_filter
+                    && let Ok(rel) = path.strip_prefix(root) {
                         let rel_str = rel.to_string_lossy().replace('\\', "/");
                         if !simple_glob_match(g, &rel_str) { continue; }
                     }
-                }
 
                 // Type filter
-                if let Some(types) = type_filter {
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        if !types.contains(&ext) { continue; }
-                    }
-                }
+                if let Some(types) = type_filter
+                    && let Some(ext) = path.extension().and_then(|e| e.to_str())
+                        && !types.contains(&ext) { continue; }
 
                 let content = match std::fs::read_to_string(&path) {
                     Ok(c) => c, Err(_) => continue,
@@ -529,21 +525,19 @@ fn search_dir_simple(pattern: &str, path: &str, ignore_case: bool) -> AgentResul
             for entry in entries.filter_map(|e| e.ok()) {
                 let path = entry.path();
                 if path.is_file() {
-                    if let Ok(rel) = path.strip_prefix(root) {
-                        if let Ok(content) = std::fs::read_to_string(&path) {
+                    if let Ok(rel) = path.strip_prefix(root)
+                        && let Ok(content) = std::fs::read_to_string(&path) {
                             for (i, line) in content.lines().enumerate() {
                                 if re.is_match(line) {
                                     results.push(format!("{}:{} >{}", rel.display(), i + 1, line));
                                 }
                             }
                         }
-                    }
                 } else if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if name.starts_with('.') || name == "target" || name == "node_modules" {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                        && (name.starts_with('.') || name == "target" || name == "node_modules") {
                             continue;
                         }
-                    }
                     walk(&path, root, re, results);
                 }
             }

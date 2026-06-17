@@ -7,7 +7,7 @@ pub fn repair_truncated_json(json_str: &str) -> Option<String> {
 
     let open_braces = s.matches('{').count() as isize - s.matches('}').count() as isize;
     let open_brackets = s.matches('[').count() as isize - s.matches(']').count() as isize;
-    let open_quotes = s.matches('"').count() % 2 != 0;
+    let open_quotes = !s.matches('"').count().is_multiple_of(2);
 
     let mut fixed = s.to_string();
     if open_quotes { fixed.push('"'); }

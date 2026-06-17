@@ -50,8 +50,7 @@ pub(crate) fn overview_lines(
     } else {
         Style::default().fg(theme::RUST_ORANGE).add_modifier(Modifier::BOLD)
     };
-    let text_rows = vec![
-        welcome_field_line("Version", &block.version, Style::default().fg(theme::DIM)),
+    let text_rows = [welcome_field_line("Version", &block.version, Style::default().fg(theme::DIM)),
         welcome_field_line("Subscription", &subscription_value, subscription_style),
         welcome_field_line("Cwd", &block.cwd, Style::default().fg(theme::DIM)),
         welcome_field_line("Session ID", &session_value, Style::default().fg(theme::DIM)),
@@ -59,8 +58,7 @@ pub(crate) fn overview_lines(
         Line::from(Span::styled(
             format!("Tips: {}", selected_tip(block)),
             Style::default().fg(theme::DIM),
-        )),
-    ];
+        ))];
 
     let art_width = FERRIS_ART.iter().map(|line| line.chars().count()).max().unwrap_or(0);
     let row_count = FERRIS_ART.len().max(text_rows.len());

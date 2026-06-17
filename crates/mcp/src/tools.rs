@@ -133,9 +133,8 @@ impl Tool for ListMcpResourcesTool {
                     crate::types::ConnectionState::Disconnected => "x disconnected",
                     crate::types::ConnectionState::Failed(e) => &format!("x failed: {}", e),
                 };
-                if let Some(f) = filter {
-                    if name != f { continue; }
-                }
+                if let Some(f) = filter
+                    && name != f { continue; }
                 out.push_str(&format!("**{}**: {}\n", name, state_str));
             }
 

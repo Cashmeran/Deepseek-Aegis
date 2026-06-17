@@ -147,14 +147,13 @@ impl DeepSeekClient {
                 }
 
                 // text block
-                if let Some(ref content) = m.content {
-                    if !content.is_empty() {
+                if let Some(ref content) = m.content
+                    && !content.is_empty() {
                         blocks.push(serde_json::json!({
                             "type": "text",
                             "text": content,
                         }));
                     }
-                }
 
                 // tool_use blocks
                 for tu in &m.tool_uses {
@@ -294,13 +293,11 @@ impl LlmClient for DeepSeekClient {
             "stream": true,
         });
 
-        if !config.tools_json.is_empty() {
-            if let Ok(tools) = serde_json::from_str::<Vec<serde_json::Value>>(&config.tools_json) {
-                if !tools.is_empty() {
+        if !config.tools_json.is_empty()
+            && let Ok(tools) = serde_json::from_str::<Vec<serde_json::Value>>(&config.tools_json)
+                && !tools.is_empty() {
                     request_body["tools"] = serde_json::json!(tools);
                 }
-            }
-        }
 
         if config.thinking_enabled {
             request_body["thinking"] = serde_json::json!({
@@ -378,13 +375,10 @@ impl LlmClient for DeepSeekClient {
                     match event.get("type").and_then(|t| t.as_str()) {
                         Some("content_block_start") => {
                             if let Some(cb) = event.get("content_block") {
-                                match cb.get("type").and_then(|t| t.as_str()) {
-                                    Some("tool_use") => {
-                                        pending_tool_id = cb.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                        pending_tool_name = cb.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                        pending_tool_input.clear();
-                                    }
-                                    _ => {}
+                                if let Some("tool_use") = cb.get("type").and_then(|t| t.as_str()) {
+                                    pending_tool_id = cb.get("id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                    pending_tool_name = cb.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+                                    pending_tool_input.clear();
                                 }
                             }
                         }
@@ -461,7 +455,7 @@ impl LlmClient for DeepSeekClient {
         }
 
         accumulated.latency_ms = start.elapsed().as_millis() as u64;
-        if !stream_done && accumulated.content.as_ref().map_or(true, |c| c.trim().is_empty()) && accumulated.tool_uses.is_empty() {
+        if !stream_done && accumulated.content.as_ref().is_none_or(|c| c.trim().is_empty()) && accumulated.tool_uses.is_empty() {
             let elapsed = start.elapsed().as_secs();
             let err_msg = format!(
                 "API stream ended without response ({}s elapsed, last activity {}s ago). Context: {} messages. Use /clear if persistent.",

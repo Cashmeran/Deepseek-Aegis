@@ -81,7 +81,7 @@ pub(crate) fn render_markdown(text: &str, area_w: u16) -> Vec<Line<'static>> {
 
             // ── Lists ──
             Event::Start(Tag::Item) => { flush_line(&mut current, &mut lines, width); current.push_str("  • "); }
-            Event::Start(Tag::BlockQuote(_)) => { current.push_str("▎"); }
+            Event::Start(Tag::BlockQuote(_)) => { current.push('▎'); }
 
             // ── Inline ──
             Event::Text(t) => { current.push_str(&t); }
@@ -215,13 +215,13 @@ pub(crate) fn highlight_code_lines(code: &str, lang: Option<&str>) -> Vec<Vec<(S
     static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
     static THEME: OnceLock<syntect::highlighting::Theme> = OnceLock::new();
 
-    let ss = SYNTAX_SET.get_or_init(|| SyntaxSet::load_defaults_newlines());
+    let ss = SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines);
     let theme = THEME.get_or_init(|| {
         let ts = ThemeSet::load_defaults();
         ts.themes.get("base16-ocean.dark")
             .or_else(|| ts.themes.values().next())
             .cloned()
-            .unwrap_or_else(|| syntect::highlighting::Theme::default())
+            .unwrap_or_else(syntect::highlighting::Theme::default)
     });
 
     let syntax = lang
@@ -298,7 +298,7 @@ fn parse_inline_markdown(text: &str) -> Line<'static> {
                 remaining = rest;
             }
         } else {
-            let next = remaining.find(|c: char| c == '*' || c == '`').unwrap_or(remaining.len());
+            let next = remaining.find(['*', '`']).unwrap_or(remaining.len());
             if next > 0 || spans.is_empty() {
                 spans.push(Span::raw(remaining[..next].to_string()));
             }

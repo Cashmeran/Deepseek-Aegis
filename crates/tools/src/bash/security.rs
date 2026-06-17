@@ -176,8 +176,8 @@ pub fn detect_shell_metacharacters(command: &str) -> Option<String> {
 
         // $VAR / ${VAR} / $(cmd) — variable expansion and command substitution.
         // $ expands inside double quotes AND unquoted.
-        if ch == '$' {
-            if i + 1 < chars.len() {
+        if ch == '$'
+            && i + 1 < chars.len() {
                 let next = chars[i + 1];
                 if next == '(' {
                     return Some(format!("$(cmd) command substitution at position {}", i));
@@ -189,7 +189,6 @@ pub fn detect_shell_metacharacters(command: &str) -> Option<String> {
                     return Some(format!("$VAR expansion at position {}", i));
                 }
             }
-        }
 
         // Backtick command substitution
         if ch == '`' {
@@ -210,8 +209,8 @@ pub fn detect_shell_metacharacters(command: &str) -> Option<String> {
                 // Only flag if there's a closing } within reasonable distance
                 if let Some(end) = chars[i..].iter().position(|&c| c == '}') {
                     let between = &chars[i+1..i+end];
-                    if between.iter().any(|&c| c == ',') ||
-                       between.windows(2).any(|w| w == &['.', '.']) {
+                    if between.contains(&',') ||
+                       between.windows(2).any(|w| w == ['.', '.']) {
                         return Some(format!("brace expansion at position {}", i));
                     }
                 }
@@ -433,11 +432,10 @@ pub fn extract_redirection_targets(command: &str) -> Vec<String> {
             // Look ahead for the target path
             let rest: String = chars[i + 1..].iter().collect();
             let rest = rest.trim_start();
-            if let Some(target) = rest.split(|c: char| c.is_whitespace() || c == ';' || c == '|' || c == '&').next() {
-                if !target.is_empty() && target != "&" {
+            if let Some(target) = rest.split(|c: char| c.is_whitespace() || c == ';' || c == '|' || c == '&').next()
+                && !target.is_empty() && target != "&" {
                     targets.push(target.to_string());
                 }
-            }
         }
 
         i += 1;

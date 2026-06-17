@@ -278,6 +278,12 @@ impl Tool for TaskUpdateTool {
 
 pub struct TaskOutputTool;
 
+impl Default for TaskOutputTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskOutputTool {
     pub fn new() -> Self { Self }
 }
@@ -323,6 +329,12 @@ impl Tool for TaskOutputTool {
 // ═══ task_stop ═══
 
 pub struct TaskStopTool;
+
+impl Default for TaskStopTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl TaskStopTool {
     pub fn new() -> Self { Self }

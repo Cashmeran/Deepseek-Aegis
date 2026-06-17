@@ -228,8 +228,8 @@ impl<L: LlmClient> AgentLoop<L> {
                         Ok((exit_code, stdout, stderr)) => {
                             let passed = exit_code == criterion.expected_exit_code;
                             let output = format!("{}{}", stdout, stderr);
-                            if let Some(ref expected) = criterion.expected_output_contains {
-                                if !output.contains(expected) {
+                            if let Some(ref expected) = criterion.expected_output_contains
+                                && !output.contains(expected) {
                                     if !passed { blocking += 1; } else { advisory += 1; }
                                     details.push(format!(
                                         "Acceptance '{}': cmd `{}` exit={} (expected {}), \
@@ -239,7 +239,6 @@ impl<L: LlmClient> AgentLoop<L> {
                                     ));
                                     continue;
                                 }
-                            }
                             if passed {
                                 details.push(format!(
                                     "✅ Acceptance '{}': `{}` passed (exit {})",

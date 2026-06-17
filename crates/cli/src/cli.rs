@@ -51,28 +51,22 @@ pub fn load_config() -> AegisConfig {
     // 1. Try ~/.aegis/config.toml
     if let Some(home) = dirs::home_dir() {
         let path = home.join(".aegis").join("config.toml");
-        if path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(c) = toml::de::from_str::<AegisConfig>(&content) {
+        if path.exists()
+            && let Ok(content) = std::fs::read_to_string(&path)
+                && let Ok(c) = toml::de::from_str::<AegisConfig>(&content) {
                     config = c;
                 }
-            }
-        }
     }
 
     // 2. Env vars override file
-    if let Ok(key) = std::env::var("DEEPSEEK_API_KEY") {
-        if !key.is_empty() { config.api_key = key; }
-    }
-    if let Ok(model) = std::env::var("DEEPSEEK_MODEL") {
-        if !model.is_empty() { config.model = model; }
-    }
-    if let Ok(effort) = std::env::var("DEEPSEEK_EFFORT") {
-        if !effort.is_empty() { config.effort = effort; }
-    }
-    if let Ok(port) = std::env::var("AEGIS_ACP_PORT") {
-        if let Ok(p) = port.parse() { config.acp_port = p; }
-    }
+    if let Ok(key) = std::env::var("DEEPSEEK_API_KEY")
+        && !key.is_empty() { config.api_key = key; }
+    if let Ok(model) = std::env::var("DEEPSEEK_MODEL")
+        && !model.is_empty() { config.model = model; }
+    if let Ok(effort) = std::env::var("DEEPSEEK_EFFORT")
+        && !effort.is_empty() { config.effort = effort; }
+    if let Ok(port) = std::env::var("AEGIS_ACP_PORT")
+        && let Ok(p) = port.parse() { config.acp_port = p; }
 
     // Fallback: if nothing set model/effort, use defaults
     if config.model.is_empty() { config.model = default_model(); }

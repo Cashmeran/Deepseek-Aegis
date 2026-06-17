@@ -52,20 +52,18 @@ impl GlobTool {
         for entry in entries.filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
-                if let Ok(relative) = path.strip_prefix(root) {
-                    if matcher.is_match(relative) {
+                if let Ok(relative) = path.strip_prefix(root)
+                    && matcher.is_match(relative) {
                         let mtime = entry.metadata().ok()
                             .and_then(|m| m.modified().ok())
                             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
                         matches.push((relative.display().to_string(), mtime));
                     }
-                }
             } else if path.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.starts_with('.') || SKIP_DIRS.contains(&name) {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                    && (name.starts_with('.') || SKIP_DIRS.contains(&name)) {
                         continue;
                     }
-                }
                 Self::walk_dir_with_mtime(&path, root, matcher, matches);
             }
         }

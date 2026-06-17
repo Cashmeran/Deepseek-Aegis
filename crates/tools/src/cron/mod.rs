@@ -122,8 +122,8 @@ impl Tool for CronDeleteTool {
     async fn execute(self: Arc<Self>, tool_use: &ToolUse, ctx: &ToolContext) -> AgentResult<ToolResultMessage> {
         let id = tool_use.input.get("id").and_then(|v| v.as_str()).unwrap_or("");
         let mut store = self.jobs.0.lock().unwrap();
-        if let Some(jobs) = store.get_mut(&ctx.session_id) {
-            if let Some(pos) = jobs.iter().position(|j| j.id == id) {
+        if let Some(jobs) = store.get_mut(&ctx.session_id)
+            && let Some(pos) = jobs.iter().position(|j| j.id == id) {
                 jobs.remove(pos);
                 return Ok(ToolResultMessage {
                     tool_use_id: tool_use.id.clone(), is_error: false,
@@ -131,7 +131,6 @@ impl Tool for CronDeleteTool {
                     elapsed_ms: 0,
                 });
             }
-        }
         Ok(ToolResultMessage {
             tool_use_id: tool_use.id.clone(), is_error: false,
             content: vec![ContentBlock::Text { text: format!("Job {} not found", id) }],

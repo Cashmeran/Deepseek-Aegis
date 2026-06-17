@@ -235,8 +235,8 @@ impl Tool for FileEditTool {
         let start = std::time::Instant::now();
 
         // Read-before-edit enforcement: file must have been read this session
-        if let Some(ref tracker) = self.read_tracker {
-            if !tracker.has_been_read(path) {
+        if let Some(ref tracker) = self.read_tracker
+            && !tracker.has_been_read(path) {
                 return Err(AgentError::ToolExecutionError {
                     tool: "file_edit".into(),
                     message: format!(
@@ -245,11 +245,10 @@ impl Tool for FileEditTool {
                     ),
                 });
             }
-        }
 
         // Concurrent modification check — reject if file was modified since last read
-        if let Some(ref tracker) = self.read_tracker {
-            if tracker.was_modified_since_read(path).unwrap_or(false) {
+        if let Some(ref tracker) = self.read_tracker
+            && tracker.was_modified_since_read(path).unwrap_or(false) {
                 return Err(AgentError::ToolExecutionError {
                     tool: "file_edit".into(),
                     message: format!(
@@ -258,7 +257,6 @@ impl Tool for FileEditTool {
                     ),
                 });
             }
-        }
 
         // Try to read existing file with encoding detection
         let (content, file_exists) = match std::fs::read(path) {

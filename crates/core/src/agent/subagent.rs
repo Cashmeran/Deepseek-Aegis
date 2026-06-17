@@ -168,7 +168,7 @@ pub fn load_agents_dir(base_dir: &Path) -> Vec<AgentDefinition> {
     if let Ok(entries) = std::fs::read_dir(&agents_dir) {
         for entry in entries.filter_map(|e| e.ok()) {
             let path = entry.path();
-            if path.extension().map_or(true, |e| e != "md") {
+            if path.extension().is_none_or(|e| e != "md") {
                 continue;
             }
             if let Some(agent) = parse_agent_md(&path) {
@@ -183,11 +183,11 @@ pub fn load_agents_dir(base_dir: &Path) -> Vec<AgentDefinition> {
         .map(std::path::PathBuf::from)
     {
         let user_dir = home.join(".aegis").join("agents");
-        if user_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&user_dir) {
+        if user_dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&user_dir) {
                 for entry in entries.filter_map(|e| e.ok()) {
                     let path = entry.path();
-                    if path.extension().map_or(true, |e| e != "md") {
+                    if path.extension().is_none_or(|e| e != "md") {
                         continue;
                     }
                     if let Some(mut agent) = parse_agent_md(&path) {
@@ -196,7 +196,6 @@ pub fn load_agents_dir(base_dir: &Path) -> Vec<AgentDefinition> {
                     }
                 }
             }
-        }
     }
 
     agents
@@ -210,10 +209,9 @@ fn parse_agent_md(path: &Path) -> Option<AgentDefinition> {
     // Parse YAML frontmatter between --- markers
     let (fm, body) = if content.starts_with("---\n") || content.starts_with("---\r\n") {
         let after = &content[4..];
-        if let Some(end) = after.find("\n---") {
+        {
+            let end = after.find("\n---")?;
             (&after[..end], after[end + 4..].trim())
-        } else {
-            return None;
         }
     } else {
         return None; // require frontmatter
@@ -251,13 +249,12 @@ fn parse_agent_md(path: &Path) -> Option<AgentDefinition> {
 fn parse_yaml_field(fm: &str, key: &str) -> Option<String> {
     for line in fm.lines() {
         let line = line.trim();
-        if let Some((k, v)) = line.split_once(':') {
-            if k.trim() == key {
+        if let Some((k, v)) = line.split_once(':')
+            && k.trim() == key {
                 let val = v.trim().trim_matches('"').trim();
                 if val.is_empty() { return None; }
                 return Some(val.to_string());
             }
-        }
     }
     None
 }
@@ -265,8 +262,8 @@ fn parse_yaml_field(fm: &str, key: &str) -> Option<String> {
 fn parse_yaml_list(fm: &str, key: &str) -> Option<Vec<String>> {
     for line in fm.lines() {
         let line = line.trim();
-        if let Some((k, v)) = line.split_once(':') {
-            if k.trim() == key {
+        if let Some((k, v)) = line.split_once(':')
+            && k.trim() == key {
                 let v = v.trim();
                 if v.starts_with('[') && v.ends_with(']') {
                     let inner = &v[1..v.len()-1];
@@ -276,7 +273,6 @@ fn parse_yaml_list(fm: &str, key: &str) -> Option<Vec<String>> {
                         .collect());
                 }
             }
-        }
     }
     None
 }

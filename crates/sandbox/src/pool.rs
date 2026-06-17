@@ -111,11 +111,10 @@ impl SandboxGuard {
 
 impl Drop for SandboxGuard {
     fn drop(&mut self) {
-        if let Some(inst) = self.instance.take() {
-            if inst.is_alive() && self.executions < self.pool.config.max_executions {
+        if let Some(inst) = self.instance.take()
+            && inst.is_alive() && self.executions < self.pool.config.max_executions {
                 self.pool.return_instance(inst);
             }
-        }
     }
 }
 

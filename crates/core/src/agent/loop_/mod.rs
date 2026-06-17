@@ -359,12 +359,12 @@ impl<L: LlmClient> AgentLoop<L> {
             let rules = self.project_rules.clone();
             let knowledge = self.project_knowledge.clone();
             let mut parts: Vec<String> = Vec::new();
-            if let Some(ref o) = overview { if !o.is_empty() { parts.push(o.clone()); } }
-            if let Some(ref m) = memory { if !m.is_empty() { parts.push(m.clone()); } }
-            if let Some(ref g) = graph { if !g.is_empty() { parts.push(g.clone()); } }
-            if let Some(ref r) = rules { if !r.is_empty() { parts.push(format!("## Project Rules\n{r}")); } }
-            if let Some(ref k) = knowledge { if !k.is_empty() { parts.push(format!("## Project Knowledge\n{k}")); } }
-            if let Some(ref s) = skills { if !s.is_empty() { parts.push(s.clone()); } }
+            if let Some(ref o) = overview && !o.is_empty() { parts.push(o.clone()); }
+            if let Some(ref m) = memory && !m.is_empty() { parts.push(m.clone()); }
+            if let Some(ref g) = graph && !g.is_empty() { parts.push(g.clone()); }
+            if let Some(ref r) = rules && !r.is_empty() { parts.push(format!("## Project Rules\n{r}")); }
+            if let Some(ref k) = knowledge && !k.is_empty() { parts.push(format!("## Project Knowledge\n{k}")); }
+            if let Some(ref s) = skills && !s.is_empty() { parts.push(s.clone()); }
             if parts.is_empty() { None } else { Some(parts.join("\n\n")) }
         };
 

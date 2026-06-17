@@ -75,7 +75,7 @@ impl ReadTracker {
         let detailed = self.detailed.lock().unwrap();
         detailed.iter()
             .filter(|r| r.path.to_string_lossy().replace('\\', "/") == normalized)
-            .last()
+            .next_back()
             .cloned()
     }
 

@@ -62,9 +62,8 @@ impl WebFetchTool {
                     in_tag = false;
                     // Block-level elements → newline
                     let tag = tag_name.trim().to_lowercase();
-                    if matches!(tag.as_str(), "br" | "p" | "div" | "li" | "tr" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "hr" | "section" | "article" | "header" | "footer" | "nav" | "main" | "aside") {
-                        if !last_was_newline { result.push('\n'); last_was_newline = true; last_was_space = false; }
-                    }
+                    if matches!(tag.as_str(), "br" | "p" | "div" | "li" | "tr" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "hr" | "section" | "article" | "header" | "footer" | "nav" | "main" | "aside")
+                        && !last_was_newline { result.push('\n'); last_was_newline = true; last_was_space = false; }
                     if tag == "script" { in_script = true; skip_until_close = "script".into(); }
                     if tag == "style" { in_style = true; skip_until_close = "style".into(); }
                     tag_name.clear();
@@ -112,19 +111,17 @@ impl WebFetchTool {
                 if remaining_str.starts_with("&quot;") { result.push('"'); i += 6; last_was_space = false; last_was_newline = false; continue; }
                 if remaining_str.starts_with("&#39;") { result.push('\''); i += 5; last_was_space = false; last_was_newline = false; continue; }
                 if remaining_str.starts_with("&nbsp;") { result.push(' '); i += 6; last_was_space = true; last_was_newline = false; continue; }
-                if remaining_str.starts_with("&#") {
-                    if let Some(end) = remaining_str.find(';') {
+                if remaining_str.starts_with("&#")
+                    && let Some(end) = remaining_str.find(';') {
                         let entity = &remaining_str[2..end];
-                        if let Ok(codepoint) = entity.parse::<u32>() {
-                            if let Some(c) = char::from_u32(codepoint) {
+                        if let Ok(codepoint) = entity.parse::<u32>()
+                            && let Some(c) = char::from_u32(codepoint) {
                                 result.push(c);
                                 i += end + 1;
                                 last_was_space = false; last_was_newline = false;
                                 continue;
                             }
-                        }
                     }
-                }
             }
 
             // Collapse whitespace
@@ -133,9 +130,8 @@ impl WebFetchTool {
                     result.push(' ');
                     last_was_space = true;
                 }
-                if ch == b'\n' || ch == b'\r' {
-                    if !last_was_newline { result.push('\n'); last_was_newline = true; last_was_space = false; }
-                }
+                if (ch == b'\n' || ch == b'\r')
+                    && !last_was_newline { result.push('\n'); last_was_newline = true; last_was_space = false; }
                 i += 1;
                 continue;
             }

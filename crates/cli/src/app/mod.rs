@@ -158,7 +158,7 @@ async fn run_tui_loop(
         {
             match action {
                 paste_burst::FlushAction::EmitChar(ch) => {
-                    let _ = app.input.textarea_insert_char(ch);
+                    app.input.textarea_insert_char(ch);
                 }
                 paste_burst::FlushAction::EmitPaste(text) => {
                     app.queue_paste_text(&text);

@@ -37,7 +37,7 @@ impl crate::language::Language for GoLanguage {
             }
 
             if !name.is_empty() {
-                let is_public = name.chars().next().map_or(false, |c| c.is_uppercase());
+                let is_public = name.chars().next().is_some_and(|c| c.is_uppercase());
                 Some(GraphNode {
                     id: make_node_id(file_path, &name, "Function", sl),
                     node_type: NodeType::Function, file_path: file_path.to_string(),
@@ -76,7 +76,7 @@ impl crate::language::Language for GoLanguage {
             }
 
             if !name.is_empty() {
-                let is_public = name.chars().next().map_or(false, |c| c.is_uppercase());
+                let is_public = name.chars().next().is_some_and(|c| c.is_uppercase());
                 Some(GraphNode {
                     id: make_node_id(file_path, &name, "Struct", sl),
                     node_type: NodeType::Struct, file_path: file_path.to_string(),

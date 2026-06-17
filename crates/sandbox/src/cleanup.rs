@@ -31,16 +31,14 @@ impl SandboxCleanup {
             let path = entry.path();
             if !path.is_dir() { continue; }
 
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(modified) = meta.modified() {
-                    if modified.elapsed().unwrap_or_default() > self.max_age {
+            if let Ok(meta) = entry.metadata()
+                && let Ok(modified) = meta.modified()
+                    && modified.elapsed().unwrap_or_default() > self.max_age {
                         let size = dir_size(&path);
                         std::fs::remove_dir_all(&path).ok();
                         report.removed_dirs += 1;
                         report.freed_bytes += size;
                     }
-                }
-            }
         }
         Ok(report)
     }

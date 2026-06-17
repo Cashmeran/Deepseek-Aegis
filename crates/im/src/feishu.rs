@@ -231,7 +231,7 @@ impl ImAdapter for FeishuAdapter {
                                             ],
                                             br#"{"code":200}"#,
                                         );
-                                        let _ = ws.send(Message::Binary(ack.into())).await;
+                                        let _ = ws.send(Message::Binary(ack)).await;
 
                                         if let Some(im_msg) = parse_feishu_binary(&data) {
                                             log::info!("Feishu IM msg: {} @ {}: {}", im_msg.sender, im_msg.chat_id, im_msg.text);
@@ -239,7 +239,7 @@ impl ImAdapter for FeishuAdapter {
                                         }
                                     } else if frame.method == METHOD_CONTROL && mtype == "ping" {
                                         let pong = build_pong_frame(service_id);
-                                        let _ = ws.send(Message::Binary(pong.into())).await;
+                                        let _ = ws.send(Message::Binary(pong)).await;
                                         log::debug!("Feishu WS pong sent");
                                     }
                                 }
@@ -265,7 +265,7 @@ impl ImAdapter for FeishuAdapter {
                 }
                 _ = heartbeat.tick() => {
                     let ping = build_ping_frame(service_id);
-                    if ws.send(Message::Binary(ping.into())).await.is_err() {
+                    if ws.send(Message::Binary(ping)).await.is_err() {
                         log::warn!("Feishu WS ping send failed");
                         break;
                     }
@@ -407,14 +407,14 @@ fn build_pong_frame(service_id: i32) -> Vec<u8> {
 fn encode_frame(seq_id: u64, log_id: u64, service_id: i32, method: i32, headers: &[(&str, &str)], payload: &[u8]) -> Vec<u8> {
     let mut buf = Vec::new();
     // field 1 (seq_id): varint
-    if seq_id != 0 { write_varint(&mut buf, 1 << 3 | 0); write_varint(&mut buf, seq_id); }
+    if seq_id != 0 { write_varint(&mut buf, (1 << 3)); write_varint(&mut buf, seq_id); }
     // field 2 (log_id): varint
-    if log_id != 0 { write_varint(&mut buf, 2 << 3 | 0); write_varint(&mut buf, log_id); }
+    if log_id != 0 { write_varint(&mut buf, (2 << 3)); write_varint(&mut buf, log_id); }
     // field 3 (service): varint
-    write_varint(&mut buf, 3 << 3 | 0);
+    write_varint(&mut buf, (3 << 3));
     write_varint(&mut buf, service_id as u64);
     // field 4 (method): varint
-    write_varint(&mut buf, 4 << 3 | 0);
+    write_varint(&mut buf, (4 << 3));
     write_varint(&mut buf, method as u64);
     // field 5 (headers): length-delimited repeated
     let mut hdr_buf = Vec::new();

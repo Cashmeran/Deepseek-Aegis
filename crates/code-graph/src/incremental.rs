@@ -42,11 +42,10 @@ impl IncrementalIndexer {
 
         // 快速路径: hash 未变则跳过
         let path_str = file_path.to_string_lossy().replace('\\', "/");
-        if let Ok(Some(old_hash)) = self.store.get_file_hash(Path::new(&path_str)) {
-            if old_hash == new_hash {
+        if let Ok(Some(old_hash)) = self.store.get_file_hash(Path::new(&path_str))
+            && old_hash == new_hash {
                 return Ok(FileChange::Unchanged);
             }
-        }
 
         // 检测语言
         let lang = self.parser.detect_language(&path_str).ok_or_else(|| {
@@ -105,15 +104,12 @@ impl IncrementalIndexer {
                     && name != ".git"
             })
         {
-            if let Ok(entry) = entry {
-                if entry.file_type().is_file() {
-                    if let Some(ext) = entry.path().extension().and_then(|e| e.to_str()) {
-                        if exts.iter().any(|s| s == ext) {
+            if let Ok(entry) = entry
+                && entry.file_type().is_file()
+                    && let Some(ext) = entry.path().extension().and_then(|e| e.to_str())
+                        && exts.iter().any(|s| s == ext) {
                             all_files.push(entry.path().to_path_buf());
                         }
-                    }
-                }
-            }
         }
 
         let total = all_files.len();

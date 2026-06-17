@@ -701,10 +701,10 @@ fn handle_printable_key(app: &mut App, key: KeyEvent) -> bool {
             // If `ch == c`, single normal insert. Otherwise the detector
             // emitted a held char; insert it first, then the current char.
             if ch == c {
-                let _ = app.input.textarea_insert_char(c);
+                app.input.textarea_insert_char(c);
             } else {
-                let _ = app.input.textarea_insert_char(ch);
-                let _ = app.input.textarea_insert_char(c);
+                app.input.textarea_insert_char(ch);
+                app.input.textarea_insert_char(c);
             }
         }
     }
@@ -771,13 +771,13 @@ pub(super) fn handle_mention_key(app: &mut App, key: KeyEvent) -> KeyOutcome {
             changed.into()
         }
         (KeyCode::Char(c), m) if is_printable_text_modifiers(m) => {
-            let changed = app.input.textarea_insert_char(c);
+            app.input.textarea_insert_char(c);
             if c.is_whitespace() {
                 mention::deactivate(app);
             } else {
                 mention::update_query(app);
             }
-            changed.into()
+            ().into()
         }
         // Any other key: deactivate mention and forward to normal handling
         _ => {
@@ -818,9 +818,9 @@ fn handle_slash_key(app: &mut App, key: KeyEvent) -> KeyOutcome {
             changed.into()
         }
         (KeyCode::Char(c), m) if is_printable_text_modifiers(m) => {
-            let changed = app.input.textarea_insert_char(c);
+            app.input.textarea_insert_char(c);
             slash::update_query(app);
-            changed.into()
+            ().into()
         }
         _ => {
             slash::deactivate(app);
@@ -860,9 +860,9 @@ fn handle_subagent_key(app: &mut App, key: KeyEvent) -> KeyOutcome {
             changed.into()
         }
         (KeyCode::Char(c), m) if is_printable_text_modifiers(m) => {
-            let changed = app.input.textarea_insert_char(c);
+            app.input.textarea_insert_char(c);
             subagent::update_query(app);
-            changed.into()
+            ().into()
         }
         _ => {
             subagent::deactivate(app);

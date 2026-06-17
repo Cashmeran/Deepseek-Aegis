@@ -116,25 +116,25 @@ impl crate::language::Language for RustLanguage {
             for cap in captures {
                 if cap.name == "callee" { callee = cap.node.utf8_text(source).unwrap_or("").to_string(); call_node = Some(cap.node); }
             }
-            if !callee.is_empty() { if let Some(cn) = call_node { if let Some(enclosing) = find_enclosing_function(cn, source) {
+            if !callee.is_empty() && let Some(cn) = call_node && let Some(enclosing) = find_enclosing_function(cn, source) {
                 return Some(GraphEdge{ source_id:make_node_id(file_path,&enclosing,"Function",1), target_id:make_node_id(file_path,&callee,"Function",1), edge_type:EdgeType::Calls, weight:0.8, target_name: callee.clone() });
-            }}} None
+            } None
         }).iter().for_each(|e| edges.push(e.clone()));
         run_query("(call_expression function: (field_expression field: (field_identifier) @method))",
             tree_sitter_rust::LANGUAGE.into(), tree, source, &mut |captures, source| {
             let mut callee=String::new(); let mut call_node=None;
             for cap in captures { if cap.name=="method" { callee=cap.node.utf8_text(source).unwrap_or("").to_string(); call_node=Some(cap.node); } }
-            if !callee.is_empty() { if let Some(cn)=call_node { if let Some(e)=find_enclosing_function(cn,source) {
+            if !callee.is_empty() && let Some(cn)=call_node && let Some(e)=find_enclosing_function(cn,source) {
                 return Some(GraphEdge{ source_id:make_node_id(file_path,&e,"Function",1), target_id:make_node_id(file_path,&callee,"Function",1), edge_type:EdgeType::Calls, weight:0.7, target_name: callee.clone() });
-            }}} None
+            } None
         }).iter().for_each(|e| edges.push(e.clone()));
         run_query("(macro_invocation macro: (identifier) @macro)",
             tree_sitter_rust::LANGUAGE.into(), tree, source, &mut |captures, source| {
             let mut callee=String::new(); let mut cn=None;
             for cap in captures { if cap.name=="macro" { callee=cap.node.utf8_text(source).unwrap_or("").to_string(); cn=Some(cap.node); } }
-            if !callee.is_empty() { if let Some(c)=cn { if let Some(e)=find_enclosing_function(c,source) {
+            if !callee.is_empty() && let Some(c)=cn && let Some(e)=find_enclosing_function(c,source) {
                 return Some(GraphEdge{ source_id:make_node_id(file_path,&e,"Function",1), target_id:make_node_id(file_path,&callee,"Function",1), edge_type:EdgeType::Calls, weight:0.3, target_name: callee.clone() });
-            }}} None
+            } None
         }).iter().for_each(|e| edges.push(e.clone()));
         edges
     }
@@ -161,9 +161,9 @@ impl crate::language::Language for RustLanguage {
             tree_sitter_rust::LANGUAGE.into(), tree, source, &mut |captures, source| {
             let mut name=String::new(); let mut node=None;
             for cap in captures { if cap.name=="var" { name=cap.node.utf8_text(source).unwrap_or("").to_string(); node=Some(cap.node); } }
-            if !name.is_empty() { if let Some(n) = node { if let Some(e) = find_enclosing_function(n, source) {
+            if !name.is_empty() && let Some(n) = node && let Some(e) = find_enclosing_function(n, source) {
                 return Some(GraphEdge{ source_id:make_node_id(file_path,&e,"Function",1), target_id:make_node_id(file_path,&name,"Variable",1), edge_type:EdgeType::References, weight:0.5, target_name: String::new() });
-            }}} None
+            } None
         }).iter().for_each(|e| edges.push(e.clone()));
         edges
     }

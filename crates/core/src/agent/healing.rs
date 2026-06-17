@@ -28,8 +28,8 @@ pub fn heal_loaded_messages(messages: &mut Vec<Message>) -> HealReport {
     while i < messages.len() {
         let msg = &messages[i];
 
-        if let Message::Assistant(assist) = msg {
-            if !assist.tool_uses.is_empty() {
+        if let Message::Assistant(assist) = msg
+            && !assist.tool_uses.is_empty() {
                 // Count how many tool_results follow
                 let needed: std::collections::HashSet<String> = assist.tool_uses.iter()
                     .map(|tu| tu.id.clone()).collect();
@@ -64,7 +64,6 @@ pub fn heal_loaded_messages(messages: &mut Vec<Message>) -> HealReport {
                 }
                 continue;
             }
-        }
 
         // Stray tool message (no preceding assistant with tool_calls)
         if let Message::ToolResult(_) = msg {
@@ -83,13 +82,12 @@ pub fn heal_loaded_messages(messages: &mut Vec<Message>) -> HealReport {
     // Pass 2: Stamp empty reasoning_content on assistant messages for thinking mode
     // (DeepSeek requires reasoning_content in multi-turn with tool calls)
     for msg in messages.iter_mut() {
-        if let Message::Assistant(assist) = msg {
-            if assist.thinking.is_none() && !assist.tool_uses.is_empty() {
+        if let Message::Assistant(assist) = msg
+            && assist.thinking.is_none() && !assist.tool_uses.is_empty() {
                 assist.thinking = Some(String::new());
                 report.stamped_reasoning += 1;
                 report.healed_count += 1;
             }
-        }
     }
 
     report
@@ -113,8 +111,8 @@ pub fn shrink_tool_results(messages: &mut [Message], max_chars: usize) -> HealRe
 
                 // Truncate each text block proportionally
                 for cb in tr.content.iter_mut() {
-                    if let crate::types::message::ContentBlock::Text { text } = cb {
-                        if text.len() > max_chars / 2 {
+                    if let crate::types::message::ContentBlock::Text { text } = cb
+                        && text.len() > max_chars / 2 {
                             let keep = max_chars / 3;
                             *text = format!(
                                 "{}...[truncated: {}→{} chars]",
@@ -123,7 +121,6 @@ pub fn shrink_tool_results(messages: &mut [Message], max_chars: usize) -> HealRe
                                 keep + 30,
                             );
                         }
-                    }
                 }
             }
         }

@@ -53,8 +53,8 @@ impl EpisodeManager {
         let mut admitted = false;
         let mut utility = 0.0f32;
 
-        if outcome == EpisodeOutcome::Failure || user_correction.is_some() {
-            if let Some(ep) = self.store.get_episode(episode_id)? {
+        if (outcome == EpisodeOutcome::Failure || user_correction.is_some())
+            && let Some(ep) = self.store.get_episode(episode_id)? {
                 let occurrence = self.store.count_similar_patterns(&ep)?;
                 let cross_session = self.store.count_cross_session_occurrences(&ep)?;
 
@@ -135,7 +135,6 @@ impl EpisodeManager {
                     }
                 }
             }
-        }
 
         Ok(EpisodeCloseResult {
             episode_id: episode_id.clone(),
